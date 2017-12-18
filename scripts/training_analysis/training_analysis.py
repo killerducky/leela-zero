@@ -23,6 +23,7 @@ import fileinput
 import collections
 import os
 import itertools
+import functools
 import sys
 
 NIBBLE = 4
@@ -67,6 +68,9 @@ def findEmptyBoard(filename):
                     print(line, eol="")
             count["black_pass"] += 1
             count[turn.policy_weights.count("0")] += 1
+        policy_sum = sum(map(float, turn.policy_weights))
+        if abs(1.0 - policy_sum) > 0.001:
+            print("policy_sum:%0.2f file:%s %lienno:5d" % (policy_sum, filename, tfh.filelineno()))
         prev_turn = turn
     return count
 
