@@ -23,6 +23,7 @@ import fileinput
 import collections
 import os
 import itertools
+import sys
 
 NIBBLE = 4
 BOARDSIZE = 19
@@ -33,50 +34,45 @@ POLICY = 17
 WINNER = 18
 ZERO_LINE = "0"*math.ceil((BOARDSIZE**2+1)/NIBBLE) + "\n" # 361+1 bits in hex nibbles
 
-def findEmptyBoard(tfh):
+class Turn():
+    def __init__(self, turn):
+        self.valid = len(turn) == TURNSIZE
+        if not self.valid: return
+        self.board = turn[:HISTORY_PLANES*2]
+        self.to_move = int(turn[TOMOVE])              # 0 = black, 1 = white
+        self.policy_weights = turn[POLICY].split()    # 361 moves + 1 pass
+        self.side_to_move_won = int(turn[WINNER])     # 1 = side to move won, -1 = lost
+        self.empty_board = all(line == ZERO_LINE for line in self.board)
+        self.early_board = self.board[-1] == ZERO_LINE
+    def pass_weight(self):
+        return float(self.policy_weights[-1])
+
+def findEmptyBoard(filename):
+    tfh = fileinput.FileInput(filename, mode="rb", openhook=fileinput.hook_compressed)
     count = collections.Counter()
+    prev_turn = None
     while (1):
-        empty_board = True
-        turn = [line.decode("utf-8") for line in itertools.islice(tfh, TURNSIZE)]
-        if len(turn) < TURNSIZE:
-            break
-        board = turn[:HISTORY_PLANES*2]
-        to_move = int(turn[TOMOVE])              # 0 = black, 1 = white
-        policy_weights = turn[POLICY].split()    # 361 moves + 1 pass
-        side_to_move_won = int(turn[WINNER])     # 1 = side to move won, -1 = lost
-        empty_board = all(line == ZERO_LINE for line in board)
-        # Note: it can be empty_board and white to move if black passed
-        if empty_board and to_move == 0:
-            #pass_weight = float(policy_weights[-1])
-            #print("pass weight %0.2f" % (pass_weight*1000))
-            count[policy_weights.count("0")] += 1
+        turn = Turn([line.decode("utf-8") for line in itertools.islice(tfh, TURNSIZE)])
+        if not turn.valid: break
+        if turn.empty_board and turn.to_move == 0:
+            count["first_move"] += 1
+        if turn.board[-1] == ZERO_LINE and turn.to_move == 1:
+            count["white_early"] += 1
+        if prev_turn and turn.early_board and prev_turn.board == turn.board and turn.to_move == 1:
+            # black passed on previous turn in the very early game, check stats
+            print("black passed. empty_board:%s file:%s lineno:%d black pass:%0.2f%% white pass:%0.2f%%" %
+                (turn.empty_board, filename, tfh.filelineno(), prev_turn.pass_weight()*100, turn.pass_weight()*100))
+            if not turn.empty_board:
+                for line in turn.board:
+                    print(line, eol="")
+            count["black_pass"] += 1
+            count[turn.policy_weights.count("0")] += 1
+        prev_turn = turn
     return count
 
 def main():
     usage_str = """
-Update: This method will not work on newer nets, becauase the
-newer nets are starting to narrow the search. So even a normally
-working system will have many zeros in the policy target for the
-first move. This was originally developed against net 2184b750,
-where this method did work.
-
-This script analyzes the training data for abnormal results,
-such as issues #359/#375. It looks for the first move of a game
-and does a histogram of how many policy training targets have
-a value of "0". Normally there should be zero but with the bug
-there can be many. Note the bug is intermittent so there will
-be more games with bad data in them that this script can detect.
-
-Example output:
-    ../../../train_2184b750/train_2184b750_0.gz  {0: 32}
-        <snip>
-    ../../../train_2184b750/train_2184b750_9.gz  {0: 10970, 38: 1, 10: 1, 348: 1, 345: 1, 139: 1, 259: 1, 335: 1, 97: 1, 23: 1, 276: 1}
-    total first move cnt =  10980
-
-Out of 10980 games, 10970 games had no 0 in the training target.
-1 game had 38 0s
-1 game had 345 0s
-etc.
+This script analyzes training data for abnormal results.
 """
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description=usage_str)
     parser.add_argument("files", metavar="files", type=str, nargs="+", help="training files (with or without *.gz)")
@@ -84,12 +80,11 @@ etc.
     total_first_move_cnt = 0
     totalCount = collections.Counter()
     for filename in args.files:
-        tfh = fileinput.FileInput(filename, openhook=fileinput.hook_compressed)
-        fileCount = findEmptyBoard(tfh)
-        print(filename, fileCount)
+        sys.stderr.write(filename + "\n")
+        fileCount = findEmptyBoard(filename)
         totalCount.update(fileCount)
-    print("first move counts =", totalCount)
-    print("total first move counts =", sum(totalCount.values()))
+    for k in sorted(totalCount.keys(), key=lambda k: (type(k)==int, k)):
+        print(k,totalCount[k])
 
 if __name__ == "__main__":
     main()
