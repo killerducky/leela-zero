@@ -24,7 +24,7 @@ import itertools
 #RESIDUAL_BLOCKS = 6
 #RESIDUAL_FILTERS = 64
 #RESIDUAL_BLOCKS = 5
-RESIDUAL_FILTERS = 2
+RESIDUAL_FILTERS = 8
 RESIDUAL_BLOCKS = 1
 INPUT_PLANES = 18
 HISTORY_PLANES = 8
@@ -71,9 +71,15 @@ def main():
 
     # Input conv
     print(to_string(BOARD_IDENTITY*RESIDUAL_FILTERS))
-    print("0.0 "*RESIDUAL_FILTERS) # conv_biases
-    print("0.0 "*RESIDUAL_FILTERS) # batchnorm_means
-    print("1.0 "*RESIDUAL_FILTERS) # batchnorm_variances
+    print(to_string([0.0]*RESIDUAL_FILTERS)) # conv_biases
+    # TODO:
+    # These two batchnorm_means choices just switch which filter is activiating things.
+    # I think it should produce identical results but it doesn't.
+    #print(to_string([-5, 5])) # batchnorm_means    negative increases activations, positive decreases activations
+    #print(to_string([5, -5])) # batchnorm_means    negative increases activations, positive decreases activations
+    #print(to_string([0.0]*7+[5]))
+    print(to_string([0.0]*RESIDUAL_FILTERS))
+    print(to_string([1.0]*RESIDUAL_FILTERS)) # batchnorm_variances
 
     # Residual layer
     print(to_string(IDENTITY*RESIDUAL_FILTERS**2)) # conv_weights
@@ -90,7 +96,7 @@ def main():
     print("0.0 "*2) # conv_pol_b
     print("0.0 "*2) # bn_pol_w1
     print("1.0 "*2) # bn_pol_w2
-    print(to_string(ip_identity(361, 362, RESIDUAL_FILTERS)))
+    print(to_string(ip_identity(361, 362, 2)))
     print("0.0 "*362) # ip_pol_b
 
     # Value
