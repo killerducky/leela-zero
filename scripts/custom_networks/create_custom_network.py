@@ -18,7 +18,7 @@
 
 import sys
 import argparse
-
+import itertools
 
 #RESIDUAL_FILTERS = 128   !! these aren't correct...
 #RESIDUAL_BLOCKS = 6
@@ -27,44 +27,82 @@ import argparse
 RESIDUAL_FILTERS = 2
 RESIDUAL_BLOCKS = 1
 INPUT_PLANES = 18
+HISTORY_PLANES = 8
 
-IDENTITY = "0.1 0.1 0.1 0.1 0.9 0.1 0.1 0.1 0.1"
-SUM = "0.9 0.9 0.9 0.9 0.9 0.9 0.9 0.9 0.9"
 
-# Version
-print("1")
+IDENTITY = [0.0, 0.0, 0.0,
+            0.0, 1.0, 0.0,
+            0.0, 0.0, 0.0]
+SUM = [0.3, 0.3, 0.3,
+       0.3, 0.3, 0.3,
+       0.3, 0.3, 0.3]
+ZERO = [0.0, 0.0, 0.0,
+        0.0, 0.0, 0.0,
+        0.0, 0.0, 0.0]
+BOARD_IDENTITY = ([]
+    + SUM*1                        # Most recent opponent?
+    + ZERO*(HISTORY_PLANES-1)
+    + SUM*1                        # Most recent me?
+    + ZERO*(HISTORY_PLANES-1)
+    + ZERO
+    + ZERO)
 
-# Input conv
-print((IDENTITY+" ")*INPUT_PLANES*RESIDUAL_FILTERS)
-print("0.1 "*RESIDUAL_FILTERS) # conv_biases
-print("0.1 "*RESIDUAL_FILTERS) # batchnorm_means
-print("0.1 "*RESIDUAL_FILTERS) # batchnorm_variances
+def ip_identity(rows, cols, filters):
+    I = []
+    for c in range(cols):
+        for f in range(filters):
+            for r in range(rows):
+                if r and c and r == c:
+                    I.append(1.1)
+                else:
+                    I.append(0.0)
+    return I
 
-# Residual layer
-print((IDENTITY+" ")*RESIDUAL_FILTERS**2) # conv_weights
-print("0.1 "*RESIDUAL_FILTERS) # conv_biases
-print("0.1 "*RESIDUAL_FILTERS) # batchnorm_means
-print("0.1 "*RESIDUAL_FILTERS) # batchnorm_variances
-print((IDENTITY+" ")*RESIDUAL_FILTERS**2)
-print("0.1 "*RESIDUAL_FILTERS) # conv_biases
-print("0.1 "*RESIDUAL_FILTERS) # batchnorm_means
-print("0.1 "*RESIDUAL_FILTERS) # batchnorm_variances
+def to_string(a):
+    return " ".join(map(str, a))
 
-# Policy
-print("0.9 "*RESIDUAL_FILTERS*2)
-print("0.9 "*2) # conv_pol_b
-print("0.1 "*2) # bn_pol_w1
-print("0.1 "*2) # bn_pol_w2
-print("0.9 "*361*362*2) # ip_pol_w
-print("0.1 "*362) # ip_pol_b
+def pretty_print(a):
+    for filter in [a[i:i+3*3] for i in range(0, len(a), 9)]:
+        print(filter)
 
-# Value
-print("0.9 "*RESIDUAL_FILTERS) # conv_val_w
-print("0.1") # conv_val_b
-print("0.1") # bn_val_w1
-print("0.1") # bn_val_w2
-print("0.9 "*1*361*256) # ip1_val_w
-print("0.1 "*256) # ip1_val_b
-print("0.9 "*1*256*1) # ip2_val_w
-print("0.1"*1) # ip_val_b
+def main():
+    # Version
+    print("1")
 
+    # Input conv
+    print(to_string(BOARD_IDENTITY*RESIDUAL_FILTERS))
+    print("0.0 "*RESIDUAL_FILTERS) # conv_biases
+    print("0.0 "*RESIDUAL_FILTERS) # batchnorm_means
+    print("1.0 "*RESIDUAL_FILTERS) # batchnorm_variances
+
+    # Residual layer
+    print(to_string(IDENTITY*RESIDUAL_FILTERS**2)) # conv_weights
+    print("0.0 "*RESIDUAL_FILTERS) # conv_biases
+    print("0.0 "*RESIDUAL_FILTERS) # batchnorm_means
+    print("1.0 "*RESIDUAL_FILTERS) # batchnorm_variances
+    print(to_string(IDENTITY*RESIDUAL_FILTERS**2)) # conv_weights
+    print("0.0 "*RESIDUAL_FILTERS) # conv_biases
+    print("0.0 "*RESIDUAL_FILTERS) # batchnorm_means
+    print("1.0 "*RESIDUAL_FILTERS) # batchnorm_variances
+
+    # Policy
+    print("1.0 "*RESIDUAL_FILTERS*2)
+    print("0.0 "*2) # conv_pol_b
+    print("0.0 "*2) # bn_pol_w1
+    print("1.0 "*2) # bn_pol_w2
+    print(to_string(ip_identity(361, 362, RESIDUAL_FILTERS)))
+    print("0.0 "*362) # ip_pol_b
+
+    # Value
+    print("1.0 "*RESIDUAL_FILTERS) # conv_val_w
+    print("0.0") # conv_val_b
+    print("0.0") # bn_val_w1
+    print("1.0") # bn_val_w2
+    print("0.0 "*1*361*256) # ip1_val_w
+    print("1.0 "*256) # ip1_val_b
+    print("0.0 "*1*256*1) # ip2_val_w
+    print("1.0"*1) # ip_val_b
+
+
+if __name__ == "__main__":
+    main()
