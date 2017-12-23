@@ -491,9 +491,6 @@ Network::Netresult Network::get_scored_moves_internal(
 #elif defined(USE_BLAS) && !defined(USE_OPENCL)
     forward(input_data, output_data);
 #endif
-
-    show_planes(output_data, 19, 19, 1);
-
     // We calculate both network heads on the CPU. They are irregular
     // and have a much lower compute densitity than the residual layers,
     // which means they don't get much - if any - speedup from being on the
@@ -501,14 +498,8 @@ Network::Netresult Network::get_scored_moves_internal(
 
     // Get the moves
     convolve<1>(2, output_data, conv_pol_w, conv_pol_b, policy_data);
-    myprintf("convolve\n");
-    show_planes(policy_data, 19, 19, 2);
     batchnorm<361>(2, policy_data, bn_pol_w1.data(), bn_pol_w2.data());
-    myprintf("bn\n");
-    show_planes(policy_data, 19, 19, 2);
     innerproduct<2*361, 362>(policy_data, ip_pol_w, ip_pol_b, policy_out);
-    myprintf("ip\n");
-    show_planes(policy_out, 19, 19, 1);
     softmax(policy_out, softmax_data, cfg_softmax_temp);
     std::vector<float>& outputs = softmax_data;
 
@@ -539,31 +530,6 @@ Network::Netresult Network::get_scored_moves_internal(
 
     return std::make_pair(result, winrate_sig);
 }
-
-void Network::show_planes(const std::vector<net_t> plane, int xsize, int ysize, int zsize) {
-    std::vector<std::string> display_map;
-    std::string line;
-    for (unsigned int z = 0; z < zsize; z++) {
-        line += "aolsen z=";
-        line += boost::str(boost::format("%d") % z);
-        display_map.push_back(line);
-        line.clear();
-        for (unsigned int y = 0; y < ysize; y++) {
-            for (unsigned int x = 0; x < xsize; x++) {
-                line += boost::str(boost::format("%f ") % plane[y*19+x]);
-                if (x == xsize-1) {
-                    display_map.push_back(line);
-                    line.clear();
-                }
-            }
-        }
-    }
-    for (int i = display_map.size() - 1; i >= 0; --i) {
-        assert(0);
-        myprintf("%s\n", display_map[i].c_str());
-    }
-}
-
 
 void Network::show_heatmap(FastState * state, Netresult& result, bool topmoves) {
     auto moves = result.first;
