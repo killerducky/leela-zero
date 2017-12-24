@@ -404,6 +404,7 @@ void OpenCL_Network::forward(const std::vector<net_t>& input,
     constexpr auto height = 19;
     constexpr auto one_plane = width * height * sizeof(net_t);
 
+    myprintf("aolsen OpenCL forward\n");
     opencl.ensure_thread_initialized();
 
     if (!opencl_thread_data.m_buffers_allocated) {
@@ -437,6 +438,7 @@ void OpenCL_Network::forward(const std::vector<net_t>& input,
 
     const auto inSize = sizeof(net_t) * input.size();
     queue.enqueueWriteBuffer(inBuffer, CL_FALSE, 0, inSize, input.data());
+    const auto finalSize = m_layers.back().outputs * one_plane;
 
     for (const auto& layer : m_layers) {
         if (layer.is_batchnorm) {
@@ -447,15 +449,40 @@ void OpenCL_Network::forward(const std::vector<net_t>& input,
                       tmpBuffer,
                       nullptr,
                       bn_weights);
+
+
+            cl::Buffer bn_weights_aolsen;
+            myprintf("is_bn finalSize=%d\n", finalSize);
+            myprintf("is_bn weights[0]:\n");
+            bn_weights_aolsen = layer.weights[0];
+            queue.enqueueReadBuffer(bn_weights_aolsen, CL_FALSE, 0, 2*sizeof(net_t), output.data());
+            queue.finish();
+            myprintf(" %f %f\n", output[0], output[1]);
+
+            myprintf("is_bn weights[1]:\n");
+            bn_weights_aolsen = layer.weights[1];
+            queue.enqueueReadBuffer(bn_weights_aolsen, CL_FALSE, 0, 2*sizeof(net_t), output.data());
+            queue.finish();
+            myprintf(" %f %f\n", output[0], output[1]);
+
+            queue.enqueueReadBuffer(tmpBuffer, CL_FALSE, 0, finalSize, output.data());
+            queue.finish();
+            myprintf("is_bn output:\n");
+            Network::show_planes(output, 19, 19, 64);
+
             std::swap(inBuffer, tmpBuffer);
+
         } else if (layer.is_residual_block) {
+            myprintf("aolsen forward RL\n");
             assert(layer.channels == layer.outputs);
             auto conv1_weights = begin(layer.weights);
             auto bn1_weights   = begin(layer.weights) + 2;
             auto conv2_weights = begin(layer.weights) + 4;
             auto bn2_weights   = begin(layer.weights) + 6;
             const auto inBufferSize = layer.channels * one_plane;
+            myprintf("aolsen forward RL channels=%d filter_size=%d sizeof(net_t)=%d\n", layer.channels, inBufferSize, sizeof(net_t));
             queue.enqueueCopyBuffer(inBuffer, residualBuffer, 0, 0, inBufferSize);
+            myprintf("aolsen forward RL convolve\n");
             convolve(layer.filter_size,
                      layer.channels,
                      layer.outputs,
@@ -463,14 +490,33 @@ void OpenCL_Network::forward(const std::vector<net_t>& input,
                      tmpBuffer,
                      mergeBuffer,
                      conv1_weights);
+
+            queue.enqueueReadBuffer(inBuffer, CL_FALSE, 0, finalSize, output.data());
+            queue.finish();
+            //myprintf("convolve input:\n");
+            //Network::show_planes(output, 19, 19, 2);
+
+            queue.enqueueReadBuffer(tmpBuffer, CL_FALSE, 0, finalSize, output.data());
+            queue.finish();
+            //myprintf("convolve output:\n");
+            //Network::show_planes(output, 19, 19, 2);
+
             std::swap(inBuffer, tmpBuffer);
+            myprintf("aolsen forward RL bn\n");
             batchnorm(layer.outputs,
                       361,
                       inBuffer,
                       tmpBuffer,
                       nullptr,
                       bn1_weights);
+
+            queue.enqueueReadBuffer(tmpBuffer, CL_FALSE, 0, finalSize, output.data());
+            queue.finish();
+            //myprintf("batchnorm output:\n");
+            //Network::show_planes(output, 19, 19, 2);
+
             std::swap(inBuffer, tmpBuffer);
+            myprintf("aolsen forward RL convolve\n");
             convolve(layer.filter_size,
                      layer.channels,
                      layer.outputs,
@@ -479,6 +525,7 @@ void OpenCL_Network::forward(const std::vector<net_t>& input,
                      mergeBuffer,
                      conv2_weights);
             std::swap(inBuffer, tmpBuffer);
+            myprintf("aolsen forward RL bn\n");
             batchnorm(layer.outputs,
                       361,
                       inBuffer,
@@ -486,6 +533,7 @@ void OpenCL_Network::forward(const std::vector<net_t>& input,
                       &residualBuffer,
                       bn2_weights);
             std::swap(inBuffer, tmpBuffer);
+            myprintf("aolsen forward RL done\n");
         } else  {
             auto conv_weights = begin(layer.weights);
             // plain convolution
@@ -496,12 +544,20 @@ void OpenCL_Network::forward(const std::vector<net_t>& input,
                      tmpBuffer,
                      mergeBuffer,
                      conv_weights);
+
+            queue.enqueueReadBuffer(tmpBuffer, CL_FALSE, 0, finalSize, output.data());
+            queue.finish();
+            myprintf("plain convolve output:\n");
+            Network::show_planes(output, 19, 19, 2);
+
             std::swap(inBuffer, tmpBuffer);
         }
     }
 
-    const auto finalSize = m_layers.back().outputs * one_plane;
+    //const auto finalSize = m_layers.back().outputs * one_plane;
     queue.enqueueReadBuffer(inBuffer, CL_FALSE, 0, finalSize, output.data());
+    myprintf("forward final output:\n");
+    Network::show_planes(output, 19, 19, 64);
 
     queue.finish();
 }
@@ -511,6 +567,7 @@ void OpenCL_Network::convolve(int filter_size, int channels, int outputs,
                               cl::Buffer& bufferOutput,
                               cl::Buffer& bufferMerge,
                               weight_slice_t weights) {
+    myprintf("aolsen OpenCL convolve\n");
     // fixed for 19x19
     constexpr int width = 19;
     constexpr int height = 19;
@@ -528,6 +585,7 @@ void OpenCL_Network::convolve(int filter_size, int channels, int outputs,
     int channelGroup = 8;
     int channelShift = 3;
 
+    myprintf("aolsen channels=%d\n", channels);
     // Input layer is not a multiple of 8
     if (channels % 8 != 0) {
         assert(channels % 2 == 0);
@@ -623,6 +681,8 @@ void OpenCL_Network::batchnorm(int outputs,
     if (channel_size == 361) {
         channelGroup = 19;
     }
+
+    myprintf("batchnorm outputs=%d channel_size=%d channelGroup=%d\n", outputs, channel_size, channelGroup);
 
     try {
         batchnorm_kernel.setArg(0, bufferInput);
