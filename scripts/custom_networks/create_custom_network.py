@@ -73,23 +73,23 @@ def main():
     print(to_string(BOARD_IDENTITY*RESIDUAL_FILTERS))
     print(to_string([0.0]*RESIDUAL_FILTERS)) # conv_biases
     print(to_string([0.0, 0.0])) # batchnorm_means    negative increases activations, positive decreases activations
-    print(to_string([0.5, 0.5])) # batchnorm_variances
+    print(to_string([1.0, 1.0])) # batchnorm_variances
 
     # Residual layer
     print(to_string(IDENTITY*RESIDUAL_FILTERS**2)) # conv_weights
     print(to_string([0.0]*RESIDUAL_FILTERS)) # conv_biases
     print(to_string([0.0]*RESIDUAL_FILTERS)) # batchnorm_means
-    print(to_string([0.5]*RESIDUAL_FILTERS)) # batchnorm_variances
+    print(to_string([1.0]*RESIDUAL_FILTERS)) # batchnorm_variances
     print(to_string(IDENTITY*RESIDUAL_FILTERS**2)) # conv_weights
     print(to_string([0.0]*RESIDUAL_FILTERS)) # conv_biases
     print(to_string([0.0]*RESIDUAL_FILTERS)) # batchnorm_means
-    print(to_string([0.5]*RESIDUAL_FILTERS)) # batchnorm_variances
+    print(to_string([1.0]*RESIDUAL_FILTERS)) # batchnorm_variances
 
     # Policy
     print(to_string([1.0]*RESIDUAL_FILTERS*2))
     print(to_string([0.0]*2)) # conv_pol_b
     print(to_string([0.0]*2)) # bn_pol_w1
-    print(to_string([0.5]*2)) # bn_pol_w2 -- variance
+    print(to_string([1.0]*2)) # bn_pol_w2 -- variance
     print(to_string(ip_identity(361, 362, 2)))
     print(to_string([0.0]*362)) # ip_pol_b
 
@@ -97,7 +97,7 @@ def main():
     print(to_string([1.0]*RESIDUAL_FILTERS)) # conv_val_w
     print(to_string([0.0])) # conv_val_b -- bias
     print(to_string([0.0])) # bn_val_w1 -- bias
-    print(to_string([0.5])) # bn_val_w2 -- variance
+    print(to_string([1.0])) # bn_val_w2 -- variance
     print(to_string([0.0]*1*361*256)) # ip1_val_w -- weight
     print(to_string([1.0]*256)) # ip1_val_b -- bias
     print(to_string([0.0]*1*256*1)) # ip2_val_w -- weight
