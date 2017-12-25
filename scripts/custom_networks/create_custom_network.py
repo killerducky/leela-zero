@@ -75,11 +75,8 @@ def main():
     # TODO:
     # These two batchnorm_means choices just switch which filter is activiating things.
     # I think it should produce identical results but it doesn't.
-    #print(to_string([0.1, -0.1])) # batchnorm_means    negative increases activations, positive decreases activations
-    print(to_string([0.2, 99.2])) # batchnorm_means    negative increases activations, positive decreases activations
-    #print(to_string([0]*7+[-5])) # batchnorm_means
-    #print(to_string([-5]+[0]*7)) # batchnorm_means
-    print(to_string([0.5, 99.5])) # batchnorm_variances
+    print(to_string([-0.1, 0.1])) # batchnorm_means    negative increases activations, positive decreases activations
+    print(to_string([0.5, 0.5])) # batchnorm_variances
 
     # Residual layer
     print(to_string(IDENTITY*RESIDUAL_FILTERS**2)) # conv_weights

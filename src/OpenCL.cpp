@@ -468,7 +468,8 @@ void OpenCL_Network::forward(const std::vector<net_t>& input,
             queue.enqueueReadBuffer(tmpBuffer, CL_FALSE, 0, finalSize, output.data());
             queue.finish();
             myprintf("is_bn output:\n");
-            Network::show_planes(output, 19, 19, 64);
+            //Network::show_planes(output, 19, 19, 64);
+            Network::show_planes(output, 19, 19, 2);
 
             std::swap(inBuffer, tmpBuffer);
 
@@ -556,10 +557,11 @@ void OpenCL_Network::forward(const std::vector<net_t>& input,
 
     //const auto finalSize = m_layers.back().outputs * one_plane;
     queue.enqueueReadBuffer(inBuffer, CL_FALSE, 0, finalSize, output.data());
-    myprintf("forward final output:\n");
-    Network::show_planes(output, 19, 19, 64);
 
     queue.finish();
+    myprintf("forward final output:\n");
+    //Network::show_planes(output, 19, 19, 64);
+    Network::show_planes(output, 19, 19, 2);
 }
 
 void OpenCL_Network::convolve(int filter_size, int channels, int outputs,

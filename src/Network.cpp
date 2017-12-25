@@ -497,7 +497,8 @@ Network::Netresult Network::get_scored_moves_internal(
     forward(input_data, output_data);
 #endif
 
-    show_planes(output_data, 19, 19, 1);
+    myprintf("get_scored_moves_internal forward output:\n");
+    show_planes(output_data, 19, 19, 2);
 
     // We calculate both network heads on the CPU. They are irregular
     // and have a much lower compute densitity than the residual layers,
