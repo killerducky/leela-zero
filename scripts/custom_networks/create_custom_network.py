@@ -20,16 +20,45 @@ import sys
 import argparse
 import itertools
 
-#RESIDUAL_FILTERS = 128   !! these aren't correct...
-#RESIDUAL_BLOCKS = 6
-#RESIDUAL_FILTERS = 64
-#RESIDUAL_BLOCKS = 5
-RESIDUAL_FILTERS = 2
-RESIDUAL_BLOCKS = 1
+#N_RESIDUAL_FILTERS = 128   !! these aren't correct...
+#N_RESIDUAL_BLOCKS = 6
+#N_RESIDUAL_FILTERS = 64
+#N_RESIDUAL_BLOCKS = 5
+N_RESIDUAL_FILTERS = 16
+N_RESIDUAL_BLOCKS = 1
 INPUT_PLANES = 18
 HISTORY_PLANES = 8
 
+PATTERNS = {
+    "ladder_escape"  : "X.." +
+                       "OOX" +
+                       "OX.",
 
+    "ladder_atari"   : "..." +
+                       "XO." +
+                       "OOX",
+
+    "ladder_maker"   : "ooo" +
+                       "ooo" +
+                       "ooo",
+
+    "ladder_breaker" : "xxx" +
+                       "xxx" +
+                       "xxx" +
+                       "+++" +
+                       "+++" +
+                       "+++",
+
+    "ladder_continue" : "..." +
+                        "..." +
+                        "...",
+
+}
+
+
+NOT_IDENTITY = [0.0, 0.0, 0.0,
+            0.0, -1.0, 0.0,
+            0.0, 0.0, 0.0]
 IDENTITY = [0.0, 0.0, 0.0,
             0.0, 1.0, 0.0,
             0.0, 0.0, 0.0]
@@ -39,14 +68,114 @@ SUM = [0.3, 0.3, 0.3,
 ZERO = [0.0, 0.0, 0.0,
         0.0, 0.0, 0.0,
         0.0, 0.0, 0.0]
-BOARD_IDENTITY = ([]
-    + SUM*1                        # Most recent opponent?
-    + ZERO*(HISTORY_PLANES-1)
-    + SUM*1                        # Most recent me?
-    + ZERO*(HISTORY_PLANES-1)
-    + ZERO                         # White/Black to move
-    + ZERO)                        # White/Black to move
 
+BOARD_FILTERS = {
+    "tomove"  :  ([]
+        + ZERO*1                       # Most recent opponent?
+        + ZERO*(HISTORY_PLANES-1)
+        + ZERO*1                       # Most recent me?
+        + ZERO*(HISTORY_PLANES-1)
+        + IDENTITY                     # White/Black to move
+        + ZERO),                       # White/Black to move
+    # TODO: generalize escaper/chaser
+    "escaper_stones" : ([]
+        + IDENTITY*1                   # Most recent opponent?
+        + ZERO*(HISTORY_PLANES-1)
+        + ZERO*1                       # Most recent me?
+        + ZERO*(HISTORY_PLANES-1)
+        + ZERO                         # White/Black to move
+        + ZERO),                       # White/Black to move
+    "chaser_stones" : ([]
+        + ZERO*1                       # Most recent opponent?
+        + ZERO*(HISTORY_PLANES-1)
+        + IDENTITY*1                   # Most recent me?
+        + ZERO*(HISTORY_PLANES-1)
+        + ZERO                         # White/Black to move
+        + ZERO),                       # White/Black to move
+    "empty" : ([]
+        + NOT_IDENTITY*1               # Most recent opponent?
+        + ZERO*(HISTORY_PLANES-1)
+        + NOT_IDENTITY*1               # Most recent me?
+        + ZERO*(HISTORY_PLANES-1)
+        + ZERO                         # White/Black to move
+        + ZERO),                       # White/Black to move
+    "not_edge" : ([]
+        + ZERO*1                       # Most recent opponent?
+        + ZERO*(HISTORY_PLANES-1)
+        + ZERO*1                       # Most recent me?
+        + ZERO*(HISTORY_PLANES-1)
+        + IDENTITY                     # White/Black to move
+        + IDENTITY),                   # White/Black to move
+    "init_to_zero" : ([]
+        + ZERO*1                       # Most recent opponent?
+        + ZERO*(HISTORY_PLANES-1)
+        + ZERO*1                       # Most recent me?
+        + ZERO*(HISTORY_PLANES-1)
+        + ZERO                         # White/Black to move
+        + ZERO),                       # White/Black to move
+}
+
+#BOARD_IDENTITY = ([]
+#    + SUM*1                        # Most recent opponent?
+#    + ZERO*(HISTORY_PLANES-1)
+#    + SUM*1                        # Most recent me?
+#    + ZERO*(HISTORY_PLANES-1)
+#    + ZERO                         # White/Black to move
+#    + ZERO)                        # White/Black to move
+
+BOARD_FILTER = ([]
+    + BOARD_FILTERS["tomove"]
+    + BOARD_FILTERS["escaper_stones"]
+    + BOARD_FILTERS["chaser_stones"]
+    + BOARD_FILTERS["empty"]
+    + BOARD_FILTERS["not_edge"]
+    + BOARD_FILTERS["init_to_zero"]*(N_RESIDUAL_FILTERS-5)
+)
+
+def str2filter(s):
+    f = []
+    f += ZERO # to move
+    f += list(map(lambda w : float(w=="O" or w=="o"), [w for w in s[0:9]]))  # escaper_stones
+    f += list(map(lambda w : float(w=="X" or w=="x"), [w for w in s[0:9]]))  # chaser_stones
+    f += list(map(lambda w : float(w=="." or w=="x" or w=="o"), [w for w in s[0:9]]))  # empty
+    if (len(s) >= 18):
+        f += list(map(lambda w : float(not(w=="+")), [w for w in s[9:18]]))  # not_edge
+    else:
+        f += ZERO
+    f += ZERO*(N_RESIDUAL_FILTERS-5)
+    return f
+
+
+RESIDUAL_FILTERS = ([]
+    #"my_stones",
+    #"opp_stones",
+    # First ones just copy board state
+    + ZERO*0 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-1) # tomove
+    + ZERO*1 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-2) # escaper_stones
+    + ZERO*2 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-3) # chaser_stones
+    + ZERO*3 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-4) # empty
+    + ZERO*4 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-5) # not_edge
+    + str2filter(PATTERNS["ladder_escape"])
+    + str2filter(PATTERNS["ladder_atari"])
+    + str2filter(PATTERNS["ladder_maker"])
+    + str2filter(PATTERNS["ladder_breaker"])
+    + str2filter(PATTERNS["ladder_continue"])
+    + ZERO*(N_RESIDUAL_FILTERS-10)*N_RESIDUAL_FILTERS
+)
+#print (len( ZERO*0), len(IDENTITY), len( ZERO*(N_RESIDUAL_FILTERS-1))) # tomove
+#print(len(ZERO*0 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-1)))
+#print(len(ZERO*1 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-2)))
+#print(len(ZERO*2 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-3)))
+#print(len(ZERO*3 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-4)))
+#print(len(ZERO*4 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-5)))
+#print(len(str2filter(PATTERNS["ladder_escape"])))
+#print(len(str2filter(PATTERNS["ladder_atari"])))
+#print(len(str2filter(PATTERNS["ladder_maker"])))
+#print(len(str2filter(PATTERNS["ladder_breaker"])))
+#print(len(str2filter(PATTERNS["ladder_continue"])))
+#print(len(ZERO*(N_RESIDUAL_FILTERS-10)*N_RESIDUAL_FILTERS))
+#sys.exit()
+#
 def ip_identity(rows, cols, filters):
     I = []
     for c in range(cols):
@@ -62,31 +191,31 @@ def to_string(a):
     return " ".join(map(str, a))
 
 def pretty_print(a):
-    for filter in [a[i:i+3*3] for i in range(0, len(a), 9)]:
-        print(filter)
+    for f in [a[i:i+3*3] for i in range(0, len(a), 9)]:
+        print(f)
 
 def main():
     # Version
     print("1")
 
     # Input conv
-    print(to_string(BOARD_IDENTITY*RESIDUAL_FILTERS))
-    print(to_string([0.0]*RESIDUAL_FILTERS)) # conv_biases
-    print(to_string([0.0, 0.0])) # batchnorm_means    negative increases activations, positive decreases activations
-    print(to_string([1.0, 1.0])) # batchnorm_variances
+    print(to_string(BOARD_FILTER))
+    print(to_string([0.0]*N_RESIDUAL_FILTERS)) # conv_biases
+    print(to_string([0.0]*N_RESIDUAL_FILTERS)) # batchnorm_means    negative increases activations, positive decreases activations
+    print(to_string([1.0]*N_RESIDUAL_FILTERS)) # batchnorm_variances
 
     # Residual layer
-    print(to_string(IDENTITY*RESIDUAL_FILTERS**2)) # conv_weights
-    print(to_string([0.0]*RESIDUAL_FILTERS)) # conv_biases
-    print(to_string([0.0]*RESIDUAL_FILTERS)) # batchnorm_means
-    print(to_string([1.0]*RESIDUAL_FILTERS)) # batchnorm_variances
-    print(to_string(IDENTITY*RESIDUAL_FILTERS**2)) # conv_weights
-    print(to_string([0.0]*RESIDUAL_FILTERS)) # conv_biases
-    print(to_string([0.0]*RESIDUAL_FILTERS)) # batchnorm_means
-    print(to_string([1.0]*RESIDUAL_FILTERS)) # batchnorm_variances
+    print(to_string(RESIDUAL_FILTERS)) # conv_weights
+    print(to_string([0.0]*N_RESIDUAL_FILTERS)) # conv_biases
+    print(to_string([0.0]*N_RESIDUAL_FILTERS)) # batchnorm_means
+    print(to_string([1.0]*N_RESIDUAL_FILTERS)) # batchnorm_variances
+    print(to_string(RESIDUAL_FILTERS)) # conv_weights
+    print(to_string([0.0]*N_RESIDUAL_FILTERS)) # conv_biases
+    print(to_string([0.0]*N_RESIDUAL_FILTERS)) # batchnorm_means
+    print(to_string([1.0]*N_RESIDUAL_FILTERS)) # batchnorm_variances
 
     # Policy
-    print(to_string([1.0]*RESIDUAL_FILTERS*2))
+    print(to_string([1.0]*N_RESIDUAL_FILTERS*2))
     print(to_string([0.0]*2)) # conv_pol_b
     print(to_string([0.0]*2)) # bn_pol_w1
     print(to_string([1.0]*2)) # bn_pol_w2 -- variance
@@ -94,7 +223,7 @@ def main():
     print(to_string([0.0]*362)) # ip_pol_b
 
     # Value
-    print(to_string([1.0]*RESIDUAL_FILTERS)) # conv_val_w
+    print(to_string([1.0]*N_RESIDUAL_FILTERS)) # conv_val_w
     print(to_string([0.0])) # conv_val_b -- bias
     print(to_string([0.0])) # bn_val_w1 -- bias
     print(to_string([1.0])) # bn_val_w2 -- variance
