@@ -20,51 +20,68 @@ import sys
 import argparse
 import itertools
 
-#N_RESIDUAL_FILTERS = 128   !! these aren't correct...
-#N_RESIDUAL_BLOCKS = 6
-#N_RESIDUAL_FILTERS = 64
-#N_RESIDUAL_BLOCKS = 5
 N_RESIDUAL_FILTERS = 16
 N_RESIDUAL_BLOCKS = 1
 INPUT_PLANES = 18
 HISTORY_PLANES = 8
 
+# TODO: Make into 5x5 patterns for more context
+# O = escaper's stones
+# X = chaser's stones
+# . = empty
+# o = O or .
+# x = X or .
+# + = outside of board (only used in 2nd set of 3*3 strings)
+
+# z=0 tomove
+# z=1 escaper_stones (O)
+# z=2 chaser_stones  (X)
+# z=3 empty
+# z=4 not_edge
+# z=5 ladder_escape
+# z=6 ladder_atari
+# z=7 ladder_maker    (O)
+# z=8 ladder_breaker  (X/+)
+# z=9 ladder_continue (.)
+
+
+# [bias, pattern_string]
+# bias means must match more than that many points to activate
 PATTERNS = {
-    "ladder_escape"  : "X.." +
-                       "OOX" +
-                       "OX.",
+    "ladder_escape"  : [0, "X.." +
+                           "OOX" +
+                           "OX."],
 
-    "ladder_atari"   : "..." +
-                       "XO." +
-                       "OOX",
+    "ladder_atari"   : [8, "..." +
+                           "XO." +
+                           "OOX"],
 
-    "ladder_maker"   : "ooo" +
-                       "ooo" +
-                       "ooo",
+    "ladder_maker"   : [0, "OOO" +
+                           "OOO" +
+                           "OOO"],
 
-    "ladder_breaker" : "xxx" +
-                       "xxx" +
-                       "xxx" +
-                       "+++" +
-                       "+++" +
-                       "+++",
+    "ladder_breaker" : [-9, "XXX" +
+                            "XXX" +
+                            "XXX" +
+                            "+++" +
+                            "+++" +
+                            "+++"],
 
-    "ladder_continue" : "..." +
-                        "..." +
-                        "...",
-
+    "ladder_continue" : [8, "..." +
+                            "..." +
+                            "..."],
 }
 
 
 NOT_IDENTITY = [0.0, 0.0, 0.0,
-            0.0, -1.0, 0.0,
-            0.0, 0.0, 0.0]
+                0.0, -1.0, 0.0,
+                0.0, 0.0, 0.0]
 IDENTITY = [0.0, 0.0, 0.0,
             0.0, 1.0, 0.0,
             0.0, 0.0, 0.0]
-SUM = [0.3, 0.3, 0.3,
-       0.3, 0.3, 0.3,
-       0.3, 0.3, 0.3]
+SUM = [1.0, 1.0, 1.0,
+       1.0, 1.0, 1.0,
+       1.0, 1.0, 1.0]
 ZERO = [0.0, 0.0, 0.0,
         0.0, 0.0, 0.0,
         0.0, 0.0, 0.0]
@@ -97,7 +114,7 @@ BOARD_FILTERS = {
         + ZERO*(HISTORY_PLANES-1)
         + NOT_IDENTITY*1               # Most recent me?
         + ZERO*(HISTORY_PLANES-1)
-        + IDENTITY                     # White/Black to move  -- This plus next line is a quick and dirty way to add bias of 1
+        + IDENTITY                     # White/Black to move  -- TODO: This plus next line is a quick and dirty way to add bias of 1.0
         + IDENTITY),                   # White/Black to move
     "not_edge" : ([]
         + ZERO*1                       # Most recent opponent?
@@ -115,14 +132,6 @@ BOARD_FILTERS = {
         + ZERO),                       # White/Black to move
 }
 
-#BOARD_IDENTITY = ([]
-#    + SUM*1                        # Most recent opponent?
-#    + ZERO*(HISTORY_PLANES-1)
-#    + SUM*1                        # Most recent me?
-#    + ZERO*(HISTORY_PLANES-1)
-#    + ZERO                         # White/Black to move
-#    + ZERO)                        # White/Black to move
-
 BOARD_FILTER = ([]
     + BOARD_FILTERS["tomove"]
     + BOARD_FILTERS["escaper_stones"]
@@ -139,12 +148,11 @@ def str2filter(s):
     f += list(map(lambda w : float(w=="X" or w=="x"), [w for w in s[0:9]]))  # chaser_stones
     f += list(map(lambda w : float(w=="." or w=="x" or w=="o"), [w for w in s[0:9]]))  # empty
     if (len(s) >= 18):
-        f += list(map(lambda w : float(not(w=="+")), [w for w in s[9:18]]))  # not_edge
+        f += list(map(lambda w : -1.0*float(w=="+"), [w for w in s[9:18]]))  # not_edge
     else:
         f += ZERO
     f += ZERO*(N_RESIDUAL_FILTERS-5)
     return f
-
 
 RESIDUAL_FILTERS_A = ([]
     #"my_stones",
@@ -156,11 +164,11 @@ RESIDUAL_FILTERS_A = ([]
     + ZERO*3 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-(3+1)) # z=3 empty
     + ZERO*4 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-(4+1)) # z=4 not_edge
     # New
-    + str2filter(PATTERNS["ladder_escape"])           # z=5
-    + str2filter(PATTERNS["ladder_atari"])            # z=6
-    + str2filter(PATTERNS["ladder_maker"])            # z=7
-    + str2filter(PATTERNS["ladder_breaker"])          # z=8
-    + str2filter(PATTERNS["ladder_continue"])         # z=9
+    + str2filter(PATTERNS["ladder_escape"][1])           # z=5
+    + str2filter(PATTERNS["ladder_atari"][1])            # z=6
+    + str2filter(PATTERNS["ladder_maker"][1])            # z=7
+    + str2filter(PATTERNS["ladder_breaker"][1])          # z=8
+    + str2filter(PATTERNS["ladder_continue"][1])         # z=9
     + ZERO*(N_RESIDUAL_FILTERS-10)*N_RESIDUAL_FILTERS
 )
 RESIDUAL_FILTERS_B = ([]
@@ -176,20 +184,6 @@ RESIDUAL_FILTERS_B = ([]
     + ZERO*9 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-(9+1)) # z=9
     + ZERO*(N_RESIDUAL_FILTERS-10)*N_RESIDUAL_FILTERS
 )
-#print (len( ZERO*0), len(IDENTITY), len( ZERO*(N_RESIDUAL_FILTERS-1))) # tomove
-#print(len(ZERO*0 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-1)))
-#print(len(ZERO*1 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-2)))
-#print(len(ZERO*2 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-3)))
-#print(len(ZERO*3 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-4)))
-#print(len(ZERO*4 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-5)))
-#print(len(str2filter(PATTERNS["ladder_escape"])))
-#print(len(str2filter(PATTERNS["ladder_atari"])))
-#print(len(str2filter(PATTERNS["ladder_maker"])))
-#print(len(str2filter(PATTERNS["ladder_breaker"])))
-#print(len(str2filter(PATTERNS["ladder_continue"])))
-#print(len(ZERO*(N_RESIDUAL_FILTERS-10)*N_RESIDUAL_FILTERS))
-#sys.exit()
-#
 def ip_identity(rows, cols, filters):
     I = []
     for c in range(cols):
@@ -209,6 +203,8 @@ def pretty_print(a):
         print(f)
 
 def main():
+    pretty_print(str2filter(PATTERNS["ladder_escape"][1]))
+    sys.exit()
     # Version
     print("1")
 
@@ -221,7 +217,13 @@ def main():
     # Residual layer
     print(to_string(RESIDUAL_FILTERS_A)) # conv_weights
     print(to_string([0.0]*N_RESIDUAL_FILTERS)) # conv_biases
-    print(to_string([0.0]*N_RESIDUAL_FILTERS)) # batchnorm_means
+    # TODO: Generalize. For now special case only ladder_continue bias
+    print(to_string([0.0]*5
+           + [PATTERNS["ladder_escape"][0]] # batchnorm_means
+           + [PATTERNS["ladder_atari"][0]] # batchnorm_means
+           + [PATTERNS["ladder_maker"][0]] # batchnorm_means
+           + [PATTERNS["ladder_breaker"][0]] # batchnorm_means
+           + [PATTERNS["ladder_continue"][0]])) # batchnorm_means
     print(to_string([1.0]*N_RESIDUAL_FILTERS)) # batchnorm_variances
     print(to_string(RESIDUAL_FILTERS_B)) # conv_weights
     print(to_string([0.0]*N_RESIDUAL_FILTERS)) # conv_biases

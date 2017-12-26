@@ -174,9 +174,7 @@ void Network::initialize(void) {
     auto plain_conv_layers = 1 + (residual_blocks * 2);
     auto plain_conv_wts = plain_conv_layers * 4;
     linecount = 0;
-    myprintf("plain_conv_layers=%d plain_conv_wts=%d\n", plain_conv_layers, plain_conv_wts);
     while (std::getline(wtfile, line)) {
-        myprintf("linecount=%d\n", linecount);
         std::vector<float> weights;
         float weight;
         std::istringstream iss(line);
@@ -552,7 +550,7 @@ void Network::show_planes(const std::vector<net_t> plane, int xsize, int ysize, 
         line.clear();
         for (unsigned int y = 0; y < ysize; y++) {
             for (unsigned int x = 0; x < xsize; x++) {
-                line += boost::str(boost::format("%f ") % plane[z*ysize*xsize+y*xsize+x]);
+                line += boost::str(boost::format("%0.1f ") % plane[z*ysize*xsize+y*xsize+x]);
                 if (x == xsize-1) {
                     display_map.push_back(line);
                     line.clear();
