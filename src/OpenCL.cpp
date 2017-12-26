@@ -468,8 +468,7 @@ void OpenCL_Network::forward(const std::vector<net_t>& input,
             queue.enqueueReadBuffer(tmpBuffer, CL_FALSE, 0, finalSize, output.data());
             queue.finish();
             myprintf("is_bn output:\n");
-            //Network::show_planes(output, 19, 19, 64);
-            Network::show_planes(output, 19, 19, 2);
+            Network::show_planes(output, 19, 19, layer.outputs);
 
             std::swap(inBuffer, tmpBuffer);
 
@@ -517,7 +516,6 @@ void OpenCL_Network::forward(const std::vector<net_t>& input,
             //Network::show_planes(output, 19, 19, 2);
 
             std::swap(inBuffer, tmpBuffer);
-            myprintf("aolsen forward RL convolve\n");
             convolve(layer.filter_size,
                      layer.channels,
                      layer.outputs,
@@ -526,7 +524,6 @@ void OpenCL_Network::forward(const std::vector<net_t>& input,
                      mergeBuffer,
                      conv2_weights);
             std::swap(inBuffer, tmpBuffer);
-            myprintf("aolsen forward RL bn\n");
             batchnorm(layer.outputs,
                       361,
                       inBuffer,
@@ -534,7 +531,6 @@ void OpenCL_Network::forward(const std::vector<net_t>& input,
                       &residualBuffer,
                       bn2_weights);
             std::swap(inBuffer, tmpBuffer);
-            myprintf("aolsen forward RL done\n");
         } else  {
             auto conv_weights = begin(layer.weights);
             // plain convolution
@@ -549,7 +545,7 @@ void OpenCL_Network::forward(const std::vector<net_t>& input,
             queue.enqueueReadBuffer(tmpBuffer, CL_FALSE, 0, finalSize, output.data());
             queue.finish();
             myprintf("plain convolve output:\n");
-            Network::show_planes(output, 19, 19, 2);
+            Network::show_planes(output, 19, 19, layer.outputs);
 
             std::swap(inBuffer, tmpBuffer);
         }
@@ -560,8 +556,7 @@ void OpenCL_Network::forward(const std::vector<net_t>& input,
 
     queue.finish();
     myprintf("forward final output:\n");
-    //Network::show_planes(output, 19, 19, 64);
-    Network::show_planes(output, 19, 19, 2);
+    Network::show_planes(output, 19, 19, m_layers.back().outputs);
 }
 
 void OpenCL_Network::convolve(int filter_size, int channels, int outputs,
@@ -587,7 +582,7 @@ void OpenCL_Network::convolve(int filter_size, int channels, int outputs,
     int channelGroup = 8;
     int channelShift = 3;
 
-    myprintf("aolsen channels=%d\n", channels);
+    myprintf("aolsen channels=%d outputs=%d\n", channels, outputs);
     // Input layer is not a multiple of 8
     if (channels % 8 != 0) {
         assert(channels % 2 == 0);

@@ -490,15 +490,11 @@ Network::Netresult Network::get_scored_moves_internal(
             }
         }
     }
-    myprintf("aolsen forward\n");
 #ifdef USE_OPENCL
     opencl_net.forward(input_data, output_data);
 #elif defined(USE_BLAS) && !defined(USE_OPENCL)
     forward(input_data, output_data);
 #endif
-
-    myprintf("get_scored_moves_internal forward output:\n");
-    show_planes(output_data, 19, 19, 2);
 
     // We calculate both network heads on the CPU. They are irregular
     // and have a much lower compute densitity than the residual layers,
