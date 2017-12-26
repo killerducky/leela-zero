@@ -97,8 +97,8 @@ BOARD_FILTERS = {
         + ZERO*(HISTORY_PLANES-1)
         + NOT_IDENTITY*1               # Most recent me?
         + ZERO*(HISTORY_PLANES-1)
-        + ZERO                         # White/Black to move
-        + ZERO),                       # White/Black to move
+        + IDENTITY                     # White/Black to move  -- This plus next line is a quick and dirty way to add bias of 1
+        + IDENTITY),                   # White/Black to move
     "not_edge" : ([]
         + ZERO*1                       # Most recent opponent?
         + ZERO*(HISTORY_PLANES-1)
@@ -146,20 +146,34 @@ def str2filter(s):
     return f
 
 
-RESIDUAL_FILTERS = ([]
+RESIDUAL_FILTERS_A = ([]
     #"my_stones",
     #"opp_stones",
-    # First ones just copy board state
-    + ZERO*0 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-1) # tomove
-    + ZERO*1 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-2) # escaper_stones
-    + ZERO*2 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-3) # chaser_stones
-    + ZERO*3 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-4) # empty
-    + ZERO*4 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-5) # not_edge
-    + str2filter(PATTERNS["ladder_escape"])
-    + str2filter(PATTERNS["ladder_atari"])
-    + str2filter(PATTERNS["ladder_maker"])
-    + str2filter(PATTERNS["ladder_breaker"])
-    + str2filter(PATTERNS["ladder_continue"])
+    # First ones just copy forward
+    + ZERO*0 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-(0+1)) # z=0 tomove
+    + ZERO*1 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-(1+1)) # z=1 escaper_stones
+    + ZERO*2 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-(2+1)) # z=2 chaser_stones
+    + ZERO*3 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-(3+1)) # z=3 empty
+    + ZERO*4 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-(4+1)) # z=4 not_edge
+    # New
+    + str2filter(PATTERNS["ladder_escape"])           # z=5
+    + str2filter(PATTERNS["ladder_atari"])            # z=6
+    + str2filter(PATTERNS["ladder_maker"])            # z=7
+    + str2filter(PATTERNS["ladder_breaker"])          # z=8
+    + str2filter(PATTERNS["ladder_continue"])         # z=9
+    + ZERO*(N_RESIDUAL_FILTERS-10)*N_RESIDUAL_FILTERS
+)
+RESIDUAL_FILTERS_B = ([]
+    #"my_stones",
+    #"opp_stones",
+    # Clear, skip connection will fill back in
+    + ZERO*5*N_RESIDUAL_FILTERS
+    # These are new in first layer, copy forward
+    + ZERO*5 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-(5+1)) # z=5
+    + ZERO*6 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-(6+1)) # z=6
+    + ZERO*7 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-(7+1)) # z=7
+    + ZERO*8 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-(8+1)) # z=8
+    + ZERO*9 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-(9+1)) # z=9
     + ZERO*(N_RESIDUAL_FILTERS-10)*N_RESIDUAL_FILTERS
 )
 #print (len( ZERO*0), len(IDENTITY), len( ZERO*(N_RESIDUAL_FILTERS-1))) # tomove
@@ -205,11 +219,11 @@ def main():
     print(to_string([1.0]*N_RESIDUAL_FILTERS)) # batchnorm_variances
 
     # Residual layer
-    print(to_string(RESIDUAL_FILTERS)) # conv_weights
+    print(to_string(RESIDUAL_FILTERS_A)) # conv_weights
     print(to_string([0.0]*N_RESIDUAL_FILTERS)) # conv_biases
     print(to_string([0.0]*N_RESIDUAL_FILTERS)) # batchnorm_means
     print(to_string([1.0]*N_RESIDUAL_FILTERS)) # batchnorm_variances
-    print(to_string(RESIDUAL_FILTERS)) # conv_weights
+    print(to_string(RESIDUAL_FILTERS_B)) # conv_weights
     print(to_string([0.0]*N_RESIDUAL_FILTERS)) # conv_biases
     print(to_string([0.0]*N_RESIDUAL_FILTERS)) # batchnorm_means
     print(to_string([1.0]*N_RESIDUAL_FILTERS)) # batchnorm_variances
