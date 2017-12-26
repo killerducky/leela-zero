@@ -47,8 +47,10 @@ HISTORY_PLANES = 8
 
 # [bias, pattern_string]
 # bias means must match more than that many points to activate
+# The edge pattern (+) is inverted because it uses the not_edge plane.
+# It produces -1.0 for each miss.
 PATTERNS = {
-    "ladder_escape"  : [0, "X.." +
+    "ladder_escape"  : [8, "X.." +
                            "OOX" +
                            "OX."],
 
@@ -142,6 +144,8 @@ BOARD_FILTER = ([]
 )
 
 def str2filter(s):
+    # TODO: Support all rotations. For now match rotation of "heatmap 0"
+    s = s[6:9]+s[3:6]+s[0:3]
     f = []
     f += ZERO # to move
     f += list(map(lambda w : float(w=="O" or w=="o"), [w for w in s[0:9]]))  # escaper_stones
@@ -199,13 +203,17 @@ def to_string(a):
     return " ".join(map(str, a))
 
 def pretty_print(a):
-    for f in [a[i:i+3*3] for i in range(0, len(a), 9)]:
-        print(f)
+    it = iter(a)
+    while (1):
+        f = [x for x in itertools.islice(it, 9)]
+        if not f: break
+        for e in f:
+            print(e, end=" ")
+        print()
+    #for f in [a[i:i+3*3] for i in range(0, len(a), 9)]:
+    #    print(f)
 
 def main():
-    pretty_print(str2filter(PATTERNS["ladder_escape"][1]))
-    sys.exit()
-    # Version
     print("1")
 
     # Input conv
