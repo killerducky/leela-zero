@@ -19,11 +19,36 @@
 import sys
 import argparse
 import itertools
+import operator
 
-N_RESIDUAL_FILTERS = 16
-N_RESIDUAL_BLOCKS = 1
 INPUT_PLANES = 18
 HISTORY_PLANES = 8
+N_RESIDUAL_FILTERS = 16
+N_BOARD_FILTERS  = 5
+N_STATIC_RESIDUAL_FILTERS = 5
+N_STATIC_FILTERS = N_BOARD_FILTERS + N_STATIC_RESIDUAL_FILTERS
+
+FILTERS = [
+    # Static Board filters
+    "tomove",           # z=0
+    "escaper_stones",   # z=1  (O)
+    "chaser_stones",    # z=2  (X)
+    "empty",            # z=3
+    "not_edge",         # z=4
+
+    # Static Patterns
+    "ladder_escape",    # z=5
+    "ladder_atari",     # z=6
+    "ladder_maker",     # z=7  (O)
+    "ladder_breaker",   # z=8  (X/+)
+    "ladder_continue",  # z=9  (.)
+    "ladder_continue2", # z=10
+
+    # Dynamic patterns
+    "ladder_broken",    # z=11
+    "ladder_made",      # z=12
+]
+
 
 # TODO: Make into 5x5 patterns for more context
 # O = escaper's stones
@@ -33,23 +58,11 @@ HISTORY_PLANES = 8
 # x = X or .
 # + = outside of board (only used in 2nd set of 3*3 strings)
 
-# z=0 tomove
-# z=1 escaper_stones (O)
-# z=2 chaser_stones  (X)
-# z=3 empty
-# z=4 not_edge
-# z=5 ladder_escape
-# z=6 ladder_atari
-# z=7 ladder_maker    (O)
-# z=8 ladder_breaker  (X/+)
-# z=9 ladder_continue (.)
-
-
 # [bias, pattern_string]
 # bias means must match more than that many points to activate
 # The edge pattern (+) is inverted because it uses the not_edge plane.
 # It produces -1.0 for each miss.
-PATTERNS = {
+PATTERN_DICT = {
     "ladder_escape"  : [8, "X.." +
                            "OOX" +
                            "OX."],
@@ -62,24 +75,31 @@ PATTERNS = {
                            "OOO" +
                            "OOO"],
 
-    "ladder_breaker" : [-9, "XXX" +
-                            "XXX" +
-                            "XXX" +
-                            "+++" +
-                            "+++" +
-                            "+++"],
+    "ladder_breaker" : [-9,  "XXX" +
+                             "XXX" +
+                             "XXX" +
+                             "+++" +
+                             "+++" +
+                             "+++"],
 
     "ladder_continue" : [8, "..." +
                             "..." +
                             "..."],
+
+    "ladder_continue2": [8, "..." +
+                            "..." +
+                            "OX."],
 }
 
-
+# Simple filters
 NOT_IDENTITY = [0.0, 0.0, 0.0,
                 0.0, -1.0, 0.0,
                 0.0, 0.0, 0.0]
 IDENTITY = [0.0, 0.0, 0.0,
             0.0, 1.0, 0.0,
+            0.0, 0.0, 0.0]
+ID_NW    = [0.0, 0.0, 1.0,
+            0.0, 0.0, 0.0,
             0.0, 0.0, 0.0]
 SUM = [1.0, 1.0, 1.0,
        1.0, 1.0, 1.0,
@@ -140,12 +160,17 @@ BOARD_FILTER = ([]
     + BOARD_FILTERS["chaser_stones"]
     + BOARD_FILTERS["empty"]
     + BOARD_FILTERS["not_edge"]
-    + BOARD_FILTERS["init_to_zero"]*(N_RESIDUAL_FILTERS-5)
+    + BOARD_FILTERS["init_to_zero"]*(N_RESIDUAL_FILTERS-N_BOARD_FILTERS)
 )
 
 def str2filter(s):
     # TODO: Support all rotations. For now match rotation of "heatmap 0"
-    s = s[6:9]+s[3:6]+s[0:3]
+    if len(s)==9:
+        s = s[6:9]+s[3:6]+s[0:3]
+    elif len(s)==18:
+        s = s[6:9]+s[3:6]+s[0:3] + s[15:18]+s[12:15]+s[9:12]
+    else:
+        raise
     f = []
     f += ZERO # to move
     f += list(map(lambda w : float(w=="O" or w=="o"), [w for w in s[0:9]]))  # escaper_stones
@@ -155,38 +180,76 @@ def str2filter(s):
         f += list(map(lambda w : -1.0*float(w=="+"), [w for w in s[9:18]]))  # not_edge
     else:
         f += ZERO
-    f += ZERO*(N_RESIDUAL_FILTERS-5)
+    f += ZERO*(N_RESIDUAL_FILTERS-N_BOARD_FILTERS)
     return f
 
-RESIDUAL_FILTERS_A = ([]
+def forward_filter(r, direction=IDENTITY):
+    if type(r) is int: r = [r]
+    f = []
+    for num in r:
+        f += ZERO*num + direction + ZERO*(N_RESIDUAL_FILTERS-(num+1))
+    return f
+
+# TODO: There must be some way to do this directly
+# with map/operator.sum but I couldn't get it to work.
+def sum_filters(filters):
+    f_total = ZERO*N_RESIDUAL_FILTERS
+    for f in filters:
+        f_total = list(map(operator.add, f_total, f))
+    return f_total
+
+
+RESIDUAL_FILTERS = []
+RESIDUAL_FILTERS.append([]
     #"my_stones",
     #"opp_stones",
     # First ones just copy forward
-    + ZERO*0 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-(0+1)) # z=0 tomove
-    + ZERO*1 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-(1+1)) # z=1 escaper_stones
-    + ZERO*2 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-(2+1)) # z=2 chaser_stones
-    + ZERO*3 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-(3+1)) # z=3 empty
-    + ZERO*4 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-(4+1)) # z=4 not_edge
+    + forward_filter(range(0,N_BOARD_FILTERS))
     # New
-    + str2filter(PATTERNS["ladder_escape"][1])           # z=5
-    + str2filter(PATTERNS["ladder_atari"][1])            # z=6
-    + str2filter(PATTERNS["ladder_maker"][1])            # z=7
-    + str2filter(PATTERNS["ladder_breaker"][1])          # z=8
-    + str2filter(PATTERNS["ladder_continue"][1])         # z=9
-    + ZERO*(N_RESIDUAL_FILTERS-10)*N_RESIDUAL_FILTERS
+    + str2filter(PATTERN_DICT[FILTERS[5]][1])
+    + str2filter(PATTERN_DICT[FILTERS[6]][1])
+    + str2filter(PATTERN_DICT[FILTERS[7]][1])
+    + str2filter(PATTERN_DICT[FILTERS[8]][1])
+    + str2filter(PATTERN_DICT[FILTERS[9]][1])
+    + ZERO*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS)*N_RESIDUAL_FILTERS
 )
-RESIDUAL_FILTERS_B = ([]
+RESIDUAL_FILTERS.append([]
     #"my_stones",
     #"opp_stones",
     # Clear, skip connection will fill back in
-    + ZERO*5*N_RESIDUAL_FILTERS
+    + ZERO*N_BOARD_FILTERS*N_RESIDUAL_FILTERS
     # These are new in first layer, copy forward
-    + ZERO*5 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-(5+1)) # z=5
-    + ZERO*6 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-(6+1)) # z=6
-    + ZERO*7 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-(7+1)) # z=7
-    + ZERO*8 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-(8+1)) # z=8
-    + ZERO*9 + IDENTITY + ZERO*(N_RESIDUAL_FILTERS-(9+1)) # z=9
-    + ZERO*(N_RESIDUAL_FILTERS-10)*N_RESIDUAL_FILTERS
+    + forward_filter(range(N_BOARD_FILTERS,N_STATIC_FILTERS))
+    + ZERO*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS)*N_RESIDUAL_FILTERS
+)
+# CCCBCCCMCCCC
+# CCBBCCMMCCCC
+# CBBBCMMMCCCC
+# BBBBMMMMCCCC
+#
+# broken = breaker || continue & ^broken
+# made   = maker   || continue & ^made
+RESIDUAL_FILTERS.append([]
+    + forward_filter(range(0,N_STATIC_FILTERS))
+    #+ forward_filter(range(N_STATIC_FILTERS,N_RESIDUAL_FILTERS))
+    #  1 || 1 & 1
+    + sum_filters([
+          forward_filter(FILTERS.index("ladder_breaker")),
+          forward_filter(FILTERS.index("ladder_breaker")),
+          forward_filter(FILTERS.index("ladder_continue")),
+          forward_filter(FILTERS.index("ladder_broken"), ID_NW)])
+    + sum_filters([
+          forward_filter(FILTERS.index("ladder_breaker")),
+          forward_filter(FILTERS.index("ladder_breaker")),
+          forward_filter(FILTERS.index("ladder_continue")),
+          forward_filter(FILTERS.index("ladder_made"), ID_NW)])
+    + ZERO*N_RESIDUAL_FILTERS*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS-2)
+)
+RESIDUAL_FILTERS.append([]
+    + ZERO*N_RESIDUAL_FILTERS*N_STATIC_FILTERS
+    + forward_filter(FILTERS.index("ladder_broken"))
+    + forward_filter(FILTERS.index("ladder_made"))
+    + ZERO*N_RESIDUAL_FILTERS*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS-2)
 )
 def ip_identity(rows, cols, filters):
     I = []
@@ -223,17 +286,27 @@ def main():
     print(to_string([1.0]*N_RESIDUAL_FILTERS)) # batchnorm_variances
 
     # Residual layer
-    print(to_string(RESIDUAL_FILTERS_A)) # conv_weights
+    print(to_string(RESIDUAL_FILTERS[0])) # conv_weights
     print(to_string([0.0]*N_RESIDUAL_FILTERS)) # conv_biases
     # TODO: Generalize. For now special case only ladder_continue bias
-    print(to_string([0.0]*5
-           + [PATTERNS["ladder_escape"][0]] # batchnorm_means
-           + [PATTERNS["ladder_atari"][0]] # batchnorm_means
-           + [PATTERNS["ladder_maker"][0]] # batchnorm_means
-           + [PATTERNS["ladder_breaker"][0]] # batchnorm_means
-           + [PATTERNS["ladder_continue"][0]])) # batchnorm_means
+    print(to_string([0.0]*N_BOARD_FILTERS
+           + [PATTERN_DICT[FILTERS[5]][0]] # batchnorm_means
+           + [PATTERN_DICT[FILTERS[6]][0]] # batchnorm_means
+           + [PATTERN_DICT[FILTERS[7]][0]] # batchnorm_means
+           + [PATTERN_DICT[FILTERS[8]][0]] # batchnorm_means
+           + [PATTERN_DICT[FILTERS[9]][0]] # batchnorm_means
+           + [0.0]*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS))) # batchnorm_means
     print(to_string([1.0]*N_RESIDUAL_FILTERS)) # batchnorm_variances
-    print(to_string(RESIDUAL_FILTERS_B)) # conv_weights
+    print(to_string(RESIDUAL_FILTERS[1])) # conv_weights
+    print(to_string([0.0]*N_RESIDUAL_FILTERS)) # conv_biases
+    print(to_string([0.0]*N_RESIDUAL_FILTERS)) # batchnorm_means
+    print(to_string([1.0]*N_RESIDUAL_FILTERS)) # batchnorm_variances
+
+    print(to_string(RESIDUAL_FILTERS[2])) # conv_weights
+    print(to_string([0.0]*N_RESIDUAL_FILTERS)) # conv_biases
+    print(to_string([0.0]*N_RESIDUAL_FILTERS)) # batchnorm_means
+    print(to_string([1.0]*N_RESIDUAL_FILTERS)) # batchnorm_variances
+    print(to_string(RESIDUAL_FILTERS[3])) # conv_weights
     print(to_string([0.0]*N_RESIDUAL_FILTERS)) # conv_biases
     print(to_string([0.0]*N_RESIDUAL_FILTERS)) # batchnorm_means
     print(to_string([1.0]*N_RESIDUAL_FILTERS)) # batchnorm_variances
