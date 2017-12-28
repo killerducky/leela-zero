@@ -26,9 +26,11 @@ HISTORY_PLANES = 8
 N_RESIDUAL_FILTERS = 16
 N_BOARD_FILTERS  = 5
 N_STATIC_RESIDUAL_FILTERS = 6
+N_DYNAMIC_RESIDUAL_FILTERS = 4
+#N_UNUSED_RESIDUAL_FILTERS = 1
 N_STATIC_FILTERS = N_BOARD_FILTERS + N_STATIC_RESIDUAL_FILTERS
 NORMALIZE_BIAS = 1.0
-DYNAMIC_LAYERS = 1
+DYNAMIC_LAYERS = 10
 
 FILTERS = [
     # Static Board filters
@@ -49,6 +51,8 @@ FILTERS = [
     # Dynamic patterns
     "ladder_broken",    # z=11
     "ladder_made",      # z=12
+    "ladder_broken_m1", # z=13 -- used for normalizing
+    "ladder_made_m1",   # z=14 -- used for normalizing
 ]
 
 
@@ -59,6 +63,7 @@ FILTERS = [
 # o = O or .
 # x = X or .
 # + = outside of board (only used in 2nd set of 3*3 strings)
+# ? = wildcard -- match anything
 
 # [bias, pattern_string]
 # bias means must match more than that many points to activate
@@ -100,9 +105,13 @@ NOT_IDENTITY = [0.0, 0.0, 0.0,
 IDENTITY = [0.0, 0.0, 0.0,
             0.0, 1.0, 0.0,
             0.0, 0.0, 0.0]
-ID_NW    = [0.0, 0.0, 1.0,
+# TODO: The default rotation of these is upside down from that of the string patterns!
+ID_NW    = [0.0, 0.0, 0.0,
             0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0]
+            0.0, 0.0, 1.0]
+NOT_ID_NW    = [0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0,
+            0.0, 0.0, -1.0]
 SUM = [1.0, 1.0, 1.0,
        1.0, 1.0, 1.0,
        1.0, 1.0, 1.0]
@@ -175,11 +184,11 @@ def str2filter(s):
         raise
     f = []
     f += ZERO # to move
-    f += list(map(lambda w : float(w=="O" or w=="o"), [w for w in s[0:9]]))  # escaper_stones
-    f += list(map(lambda w : float(w=="X" or w=="x"), [w for w in s[0:9]]))  # chaser_stones
-    f += list(map(lambda w : float(w=="." or w=="x" or w=="o"), [w for w in s[0:9]]))  # empty
+    f += list(map(lambda w : float(w=="?" or w=="O" or w=="o"), [w for w in s[0:9]]))  # escaper_stones
+    f += list(map(lambda w : float(w=="?" or w=="X" or w=="x"), [w for w in s[0:9]]))  # chaser_stones
+    f += list(map(lambda w : float(w=="?" or w=="." or w=="x" or w=="o"), [w for w in s[0:9]]))  # empty
     if (len(s) >= 18):
-        f += list(map(lambda w : -1.0*float(w=="+"), [w for w in s[9:18]]))  # not_edge
+        f += list(map(lambda w : -1.0*float(w=="?" or w=="+"), [w for w in s[9:18]]))  # not_edge
     else:
         f += ZERO
     f += ZERO*(N_RESIDUAL_FILTERS-N_BOARD_FILTERS)
@@ -199,75 +208,6 @@ def sum_filters(filters):
     for f in filters:
         f_total = list(map(operator.add, f_total, f))
     return f_total
-
-RESIDUAL_FILTERS = []
-RESIDUAL_FILTERS.append([]
-    #"my_stones",
-    #"opp_stones",
-    # First ones just copy forward
-    + forward_filter(range(0,N_BOARD_FILTERS))
-    # New
-    + str2filter(PATTERN_DICT[FILTERS[5]][1])
-    + str2filter(PATTERN_DICT[FILTERS[6]][1])
-    + str2filter(PATTERN_DICT[FILTERS[7]][1])
-    + str2filter(PATTERN_DICT[FILTERS[8]][1])
-    + str2filter(PATTERN_DICT[FILTERS[9]][1])
-    + str2filter(PATTERN_DICT[FILTERS[10]][1])
-    + ZERO*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS)*N_RESIDUAL_FILTERS
-)
-RESIDUAL_FILTERS.append([]
-    #"my_stones",
-    #"opp_stones",
-    # Clear, skip connection will fill back in
-    + ZERO*N_BOARD_FILTERS*N_RESIDUAL_FILTERS
-    # These are new in first layer, copy forward
-    + forward_filter(range(N_BOARD_FILTERS,N_STATIC_FILTERS))
-    + ZERO*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS)*N_RESIDUAL_FILTERS
-)
-
-# Use this layer to normalize outputs to 1 or 0
-RESIDUAL_FILTERS.append([]
-    + forward_filter(range(0,N_RESIDUAL_FILTERS))
-)
-RESIDUAL_FILTERS.append([]
-    + forward_filter(range(0,N_RESIDUAL_FILTERS), NOT_IDENTITY)
-)
-
-# Add the layers that propogate the dynamic features
-# broken and made
-def addDynamicLayer():
-    # LCCCBCCCMCCCC
-    # LCCBBCCMMCCCC
-    # LCBBBCMMMCCCC
-    # LBBBBMMMMCCCC
-    #
-    # broken = breaker || continue & ^broken
-    # made   = maker   || continue & ^made
-    RESIDUAL_FILTERS.append([]
-        + forward_filter(range(0,N_STATIC_FILTERS))
-        + sum_filters([
-              forward_filter(FILTERS.index("ladder_breaker")),
-              forward_filter(FILTERS.index("ladder_breaker")),
-              forward_filter(FILTERS.index("ladder_continue")),
-              forward_filter(FILTERS.index("ladder_broken"), ID_NW),
-              forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # Alternative way to do bias
-        + sum_filters([
-              forward_filter(FILTERS.index("ladder_maker")),
-              forward_filter(FILTERS.index("ladder_maker")),
-              forward_filter(FILTERS.index("ladder_continue")),
-              forward_filter(FILTERS.index("ladder_made"), ID_NW),
-              forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # Alternative way to do bias
-        + ZERO*N_RESIDUAL_FILTERS*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS-2)
-    )
-    RESIDUAL_FILTERS.append([]
-        + ZERO*N_RESIDUAL_FILTERS*N_STATIC_FILTERS
-        + forward_filter(FILTERS.index("ladder_broken"))
-        + forward_filter(FILTERS.index("ladder_made"))
-        + ZERO*N_RESIDUAL_FILTERS*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS-2)
-    )
-
-for _ in range(DYNAMIC_LAYERS):
-    addDynamicLayer()
 
 def ip_identity(rows, cols, filters):
     I = []
@@ -306,6 +246,100 @@ def normalize_test():
         print(i, o1a, o1b, o2)
     sys.exit()
 
+# Add the layers that propogate the dynamic features
+# broken and made
+def addDynamicLayer(RESIDUAL_FILTERS):
+    # LCCCBCCCMCCCC
+    # LCCBBCCMMCCCC
+    # LCBBBCMMMCCCC
+    # LBBBBMMMMCCCC
+    #
+    # broken = breaker || continue & ^broken
+    # made   = maker   || continue & ^made
+    ladder_broken = sum_filters([
+        forward_filter(FILTERS.index("ladder_breaker")),
+        forward_filter(FILTERS.index("ladder_breaker")),
+        forward_filter(FILTERS.index("ladder_continue")),
+        forward_filter(FILTERS.index("ladder_broken"), ID_NW),
+        #forward_filter(FILTERS.index("ladder_broken_m1"), NOT_ID_NW),
+        #forward_filter(FILTERS.index("ladder_broken_m1"), NOT_IDENTITY), # Normalize previous layer
+        forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # Alternative way to do bias
+    ladder_made = sum_filters([
+        forward_filter(FILTERS.index("ladder_maker")),
+        forward_filter(FILTERS.index("ladder_maker")),
+        forward_filter(FILTERS.index("ladder_continue")),
+        forward_filter(FILTERS.index("ladder_made"), ID_NW),
+        #forward_filter(FILTERS.index("ladder_made_m1"), NOT_ID_NW),
+        #forward_filter(FILTERS.index("ladder_made_m1"), NOT_IDENTITY), # Normalize previous layer
+        forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # Alternative way to do bias
+    ladder_broken_m1 = sum_filters([
+        ladder_broken,
+        forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # Alternative way to do bias
+    ladder_made_m1 = sum_filters([
+        ladder_made,
+        forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # Alternative way to do bias
+    RESIDUAL_FILTERS.append([]
+        + forward_filter(range(0,N_STATIC_FILTERS))
+        + ladder_broken
+        + ladder_made
+        + ladder_broken_m1
+        + ladder_made_m1
+        + ZERO*N_RESIDUAL_FILTERS*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS-N_DYNAMIC_RESIDUAL_FILTERS)
+    )
+    RESIDUAL_FILTERS.append([]
+        + ZERO*N_RESIDUAL_FILTERS*N_STATIC_FILTERS
+        + forward_filter(FILTERS.index("ladder_broken"))
+        + forward_filter(FILTERS.index("ladder_made"))
+        + ZERO*N_RESIDUAL_FILTERS*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS-2)
+    )
+
+
+def buildResidualFilters():
+    RESIDUAL_FILTERS = []
+    RESIDUAL_FILTERS.append([]
+        #"my_stones",
+        #"opp_stones",
+        # First ones just copy forward
+        + forward_filter(range(0,N_BOARD_FILTERS))
+        # New
+        + str2filter(PATTERN_DICT[FILTERS[5]][1])
+        + str2filter(PATTERN_DICT[FILTERS[6]][1])
+        + str2filter(PATTERN_DICT[FILTERS[7]][1])
+        + str2filter(PATTERN_DICT[FILTERS[8]][1])
+        + str2filter(PATTERN_DICT[FILTERS[9]][1])
+        + str2filter(PATTERN_DICT[FILTERS[10]][1])
+        + ZERO*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS)*N_RESIDUAL_FILTERS
+    )
+    RESIDUAL_FILTERS.append([]
+        #"my_stones",
+        #"opp_stones",
+        # Clear, skip connection will fill back in
+        + ZERO*N_BOARD_FILTERS*N_RESIDUAL_FILTERS
+        # These are new in first layer, copy forward
+        + forward_filter(range(N_BOARD_FILTERS,N_STATIC_FILTERS))
+        + ZERO*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS)*N_RESIDUAL_FILTERS
+    )
+
+    # Use this layer to normalize outputs to 1 or 0
+    RESIDUAL_FILTERS.append([]
+        + forward_filter(range(0,N_RESIDUAL_FILTERS))
+    )
+    RESIDUAL_FILTERS.append([]
+        + forward_filter(range(0,N_RESIDUAL_FILTERS), NOT_IDENTITY)
+    )
+
+    for _ in range(DYNAMIC_LAYERS):
+        addDynamicLayer(RESIDUAL_FILTERS)
+        # Use this layer to normalize outputs to 1 or 0
+        RESIDUAL_FILTERS.append([]
+           + forward_filter(range(0,N_RESIDUAL_FILTERS))
+        )
+        RESIDUAL_FILTERS.append([]
+           + forward_filter(range(0,N_RESIDUAL_FILTERS), NOT_IDENTITY)
+        )
+    return RESIDUAL_FILTERS
+
+
 def dump_patterns():
     print(PATTERN_DICT["ladder_continue"][1])
     print(str2filter(PATTERN_DICT["ladder_continue"][1]))
@@ -316,6 +350,7 @@ def dump_patterns():
     sys.exit()
 
 def main():
+    RESIDUAL_FILTERS = buildResidualFilters()
     #normalize_test()
     #dump_patterns()
 
@@ -373,6 +408,19 @@ def main():
         print(to_string([0.0]*N_RESIDUAL_FILTERS)) # conv_biases
         print(to_string([0.0]*N_RESIDUAL_FILTERS)) # batchnorm_means
         print(to_string([1.0]*N_RESIDUAL_FILTERS)) # batchnorm_variances
+
+        # Normalize layer
+        r_layer += 1
+        print(to_string(RESIDUAL_FILTERS[r_layer])) # conv_weights
+        print(to_string([0.0]*N_RESIDUAL_FILTERS)) # conv_biases
+        print(to_string([NORMALIZE_BIAS]*N_RESIDUAL_FILTERS)) # batchnorm_means <-- normalizing offset
+        print(to_string([1.0]*N_RESIDUAL_FILTERS)) # batchnorm_variances
+        r_layer += 1
+        print(to_string(RESIDUAL_FILTERS[r_layer])) # conv_weights
+        print(to_string([0.0]*N_RESIDUAL_FILTERS)) # conv_biases
+        print(to_string([0.0]*N_RESIDUAL_FILTERS)) # batchnorm_means
+        print(to_string([1.0]*N_RESIDUAL_FILTERS)) # batchnorm_variances
+
 
     # Policy
     print(to_string([1.0]*N_RESIDUAL_FILTERS*2))
