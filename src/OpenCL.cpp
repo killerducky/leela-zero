@@ -451,24 +451,24 @@ void OpenCL_Network::forward(const std::vector<net_t>& input,
                       bn_weights);
 
 
-            cl::Buffer bn_weights_aolsen;
-            myprintf("is_bn finalSize=%d\n", finalSize);
-            myprintf("is_bn weights[0]:\n");
-            bn_weights_aolsen = layer.weights[0];
-            queue.enqueueReadBuffer(bn_weights_aolsen, CL_FALSE, 0, 2*sizeof(net_t), output.data());
-            queue.finish();
-            myprintf(" %f %f\n", output[0], output[1]);
+            //cl::Buffer bn_weights_aolsen;
+            //myprintf("is_bn finalSize=%d\n", finalSize);
+            //myprintf("is_bn weights[0]:\n");
+            //bn_weights_aolsen = layer.weights[0];
+            //queue.enqueueReadBuffer(bn_weights_aolsen, CL_FALSE, 0, 2*sizeof(net_t), output.data());
+            //queue.finish();
+            //myprintf(" %f %f\n", output[0], output[1]);
 
-            myprintf("is_bn weights[1]:\n");
-            bn_weights_aolsen = layer.weights[1];
-            queue.enqueueReadBuffer(bn_weights_aolsen, CL_FALSE, 0, 2*sizeof(net_t), output.data());
-            queue.finish();
-            myprintf(" %f %f\n", output[0], output[1]);
+            //myprintf("is_bn weights[1]:\n");
+            //bn_weights_aolsen = layer.weights[1];
+            //queue.enqueueReadBuffer(bn_weights_aolsen, CL_FALSE, 0, 2*sizeof(net_t), output.data());
+            //queue.finish();
+            //myprintf(" %f %f\n", output[0], output[1]);
 
-            queue.enqueueReadBuffer(tmpBuffer, CL_FALSE, 0, finalSize, output.data());
-            queue.finish();
-            myprintf("is_bn output:\n");
-            Network::show_planes(output, 19, 19, layer.outputs);
+            //queue.enqueueReadBuffer(tmpBuffer, CL_FALSE, 0, finalSize, output.data());
+            //queue.finish();
+            //myprintf("is_bn output:\n");
+            //Network::show_planes(output, 19, 19, layer.outputs);
 
             std::swap(inBuffer, tmpBuffer);
 
@@ -491,15 +491,15 @@ void OpenCL_Network::forward(const std::vector<net_t>& input,
                      mergeBuffer,
                      conv1_weights);
 
-            queue.enqueueReadBuffer(inBuffer, CL_FALSE, 0, finalSize, output.data());
-            queue.finish();
+            //queue.enqueueReadBuffer(inBuffer, CL_FALSE, 0, finalSize, output.data());
+            //queue.finish();
             //myprintf("convolve input:\n");
-            //Network::show_planes(output, 19, 19, 2);
+            //Network::show_planes(output, 19, 19, layer.channels);
 
-            queue.enqueueReadBuffer(tmpBuffer, CL_FALSE, 0, finalSize, output.data());
-            queue.finish();
+            //queue.enqueueReadBuffer(tmpBuffer, CL_FALSE, 0, finalSize, output.data());
+            //queue.finish();
             //myprintf("convolve output:\n");
-            //Network::show_planes(output, 19, 19, 2);
+            //Network::show_planes(output, 19, 19, layer.outputs);
 
             std::swap(inBuffer, tmpBuffer);
             myprintf("aolsen forward RL bn\n");
@@ -510,10 +510,10 @@ void OpenCL_Network::forward(const std::vector<net_t>& input,
                       nullptr,
                       bn1_weights);
 
-            queue.enqueueReadBuffer(tmpBuffer, CL_FALSE, 0, finalSize, output.data());
-            queue.finish();
+            //queue.enqueueReadBuffer(tmpBuffer, CL_FALSE, 0, finalSize, output.data());
+            //queue.finish();
             //myprintf("batchnorm output:\n");
-            //Network::show_planes(output, 19, 19, 2);
+            //Network::show_planes(output, 19, 19, layer.outputs);
 
             std::swap(inBuffer, tmpBuffer);
             convolve(layer.filter_size,
@@ -544,8 +544,8 @@ void OpenCL_Network::forward(const std::vector<net_t>& input,
 
             queue.enqueueReadBuffer(tmpBuffer, CL_FALSE, 0, finalSize, output.data());
             queue.finish();
-            myprintf("plain convolve output:\n");
-            Network::show_planes(output, 19, 19, layer.outputs);
+            //myprintf("plain convolve output:\n");
+            //Network::show_planes(output, 19, 19, layer.outputs);
 
             std::swap(inBuffer, tmpBuffer);
         }
