@@ -44,18 +44,19 @@ FILTERS = [
     # Static Patterns
     "ladder_escape",    # z=5
     "ladder_atari",     # z=6
-    "ladder_maker",     # z=7  (O)
-    "ladder_breaker",   # z=8  (X/+)
+    "ladder_o",         # z=7  (O)
+    "ladder_x",         # z=8  (X)
+    #"ladder_edge",      # z=8  (+)
     "ladder_continue",  # z=9  (.)
     "ladder_continue2", # z=10
 
     # Dynamic patterns
-    "ladder_broken",    # z=11
-    "ladder_made",      # z=12
-    "prev_ladder_broken", # z=13 -- used to subtract out skip layer
-    "prev_ladder_made",   # z=14 -- used to subtract out skip layer
-    "ladder_broken_m1", # z=15 -- used for normalizing
-    "ladder_made_m1",   # z=16 -- used for normalizing
+    "ladder_x_found",    # z=11
+    "ladder_o_found",      # z=12
+    "prev_ladder_x_found", # z=13 -- used to subtract out skip layer
+    "prev_ladder_o_found",   # z=14 -- used to subtract out skip layer
+    "ladder_x_found_m1", # z=15 -- used for normalizing
+    "ladder_o_found_m1",   # z=16 -- used for normalizing
     # These should really be static, but they are built on top of ladder_escape/ladder_atari
     # Need to build like a second static level
     "ladder_escape_move", # z=17
@@ -83,29 +84,32 @@ PATTERN_DICT = {
                            "OX."],
 
     "ladder_atari"   : [8, "..." +
-                           "XO." +
-                           "OOX"],
+                           "OX." +
+                           "XXO"],
 
-    # For ladder_maker and ladder_breaker, the ! in the lower left
-    # are a trick to avoid matching right next to the ladder_atari
-    # or ladder_escape pattern
-    "ladder_maker"   : [0, "OOO" +
+    # For ladder_o and ladder_x, the ! in the lower left
+    # are a trick to avoid matching when next to the ladder_atari
+    # or ladder_escape pattern itself.
+    # This doesn't break anything because they will all be picked
+    # up as the pattern sweeps diagonally from NE to SW.
+    "ladder_o"       : [0, "OOO" +
                            "!OO" +
                            "!!O"],
 
-    # -6 bias because in the middle hit 6 not_edge, for -6 total
-    "ladder_breaker" : [-6,  "XXX" +
-                             "!XX" +
-                             "!!X" +
+    "ladder_x"       : [0,  "XXX" +
+                            "!XX" +
+                            "!!X"],
+
+    # -9 bias because in the middle hit 9 not_edge, for -9 total
+    "ladder_edge"     : [-9, "+++" +
                              "+++" +
-                             "!++" +
-                             "!!+"],
+                             "+++"],
 
     "ladder_continue" : [8, "..." +
                             "..." +
                             "..."],
 
-    # Don't need this with the ! trick in maker/breaker patterns
+    # Don't need this with the ! trick in o/x patterns
     "ladder_continue2": [8, "..." +
                             "..." +
                             "OX."],
@@ -196,6 +200,7 @@ def str2filter(s):
         s = s[6:9]+s[3:6]+s[0:3]
     elif len(s)==18:
         s = s[6:9]+s[3:6]+s[0:3] + s[15:18]+s[12:15]+s[9:12]
+        raise
     else:
         raise
     f = []
@@ -203,8 +208,8 @@ def str2filter(s):
     f += list(map(lambda w : float(w=="?" or w=="O" or w=="o"), [w for w in s[0:9]]))  # escaper_stones
     f += list(map(lambda w : float(w=="?" or w=="X" or w=="x"), [w for w in s[0:9]]))  # chaser_stones
     f += list(map(lambda w : float(w=="?" or w=="." or w=="x" or w=="o"), [w for w in s[0:9]]))  # empty
-    if (len(s) >= 18):
-        f += list(map(lambda w : -1.0*float(w=="?" or w=="+"), [w for w in s[9:18]]))  # not_edge
+    if "+" in s:
+        f += list(map(lambda w : -1.0*float(w=="?" or w=="+"), [w for w in s[0:9]]))  # not_edge
     else:
         f += ZERO
     f += ZERO*(N_RESIDUAL_FILTERS-N_BOARD_FILTERS)
@@ -273,45 +278,45 @@ def normalize_test():
     sys.exit()
 
 # Add the layers that propogate the dynamic features
-# broken and made
+# x_found and made
 def addDynamicLayer(RESIDUAL_FILTERS):
     # LCCCBCCCMCCCC
     # LCCBBCCMMCCCC
     # LCBBBCMMMCCCC
     # LBBBBMMMMCCCC
     #
-    # broken = breaker || continue & ^broken
-    # made   = maker   || continue & ^made
-    ladder_broken = sum_filters([
-        forward_filter(FILTERS.index("ladder_breaker")),
-        forward_filter(FILTERS.index("ladder_breaker")),
+    # x_found = x || continue & ^x_found
+    # o_found = o || continue & ^o_found
+    ladder_x_found = sum_filters([
+        forward_filter(FILTERS.index("ladder_x_found")),
+        forward_filter(FILTERS.index("ladder_x_found")),
         forward_filter(FILTERS.index("ladder_continue")),
-        forward_filter(FILTERS.index("ladder_broken"), ID_NW),
-        #forward_filter(FILTERS.index("ladder_broken_m1"), NOT_ID_NW),
-        #forward_filter(FILTERS.index("ladder_broken_m1"), NOT_IDENTITY), # Normalize previous layer
+        forward_filter(FILTERS.index("ladder_x_found"), ID_NW),
+        #forward_filter(FILTERS.index("ladder_x_found_m1"), NOT_ID_NW),
+        #forward_filter(FILTERS.index("ladder_x_found_m1"), NOT_IDENTITY), # Normalize previous layer
         forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # Alternative way to do bias
-    ladder_made = sum_filters([
-        forward_filter(FILTERS.index("ladder_maker")),
-        forward_filter(FILTERS.index("ladder_maker")),
+    ladder_o_found = sum_filters([
+        forward_filter(FILTERS.index("ladder_x_found")),
+        forward_filter(FILTERS.index("ladder_x_found")),
         forward_filter(FILTERS.index("ladder_continue")),
-        forward_filter(FILTERS.index("ladder_made"), ID_NW),
-        #forward_filter(FILTERS.index("ladder_made_m1"), NOT_ID_NW),
-        #forward_filter(FILTERS.index("ladder_made_m1"), NOT_IDENTITY), # Normalize previous layer
+        forward_filter(FILTERS.index("ladder_o_found"), ID_NW),
+        #forward_filter(FILTERS.index("ladder_o_found_m1"), NOT_ID_NW),
+        #forward_filter(FILTERS.index("ladder_o_found_m1"), NOT_IDENTITY), # Normalize previous layer
         forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # Alternative way to do bias
-    ladder_broken_m1 = sum_filters([
-        ladder_broken,
+    ladder_x_found_m1 = sum_filters([
+        ladder_x_found,
         forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # Alternative way to do bias
-    ladder_made_m1 = sum_filters([
-        ladder_made,
+    ladder_o_found_m1 = sum_filters([
+        ladder_o_found,
         forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # Alternative way to do bias
     RESIDUAL_FILTERS.append([]
         + forward_filter(range(0,N_STATIC_FILTERS))
-        + ladder_broken
-        + ladder_made
-        + forward_filter(FILTERS.index("ladder_broken")) # prev_ladder_broken
-        + forward_filter(FILTERS.index("ladder_made"))   # prev_ladder_made
-        + ladder_broken_m1
-        + ladder_made_m1
+        + ladder_x_found
+        + ladder_o_found
+        + forward_filter(FILTERS.index("ladder_x_found")) # prev_ladder_x_found
+        + forward_filter(FILTERS.index("ladder_o_found"))   # prev_ladder_o_found
+        + ladder_x_found_m1
+        + ladder_o_found_m1
         + forward_filter(FILTERS.index("ladder_escape"), ID_S) # ladder_escape_move
         + forward_filter(FILTERS.index("ladder_atari"), ID_S)  # ladder_atari_move
         + ZERO*N_RESIDUAL_FILTERS*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS-N_DYNAMIC_RESIDUAL_FILTERS)
@@ -319,17 +324,17 @@ def addDynamicLayer(RESIDUAL_FILTERS):
     RESIDUAL_FILTERS.append([]
         + ZERO*N_RESIDUAL_FILTERS*N_STATIC_FILTERS
         + sum_filters([
-            forward_filter(FILTERS.index("ladder_broken")),
-            forward_filter(FILTERS.index("ladder_broken_m1"), NOT_IDENTITY),
-            forward_filter(FILTERS.index("prev_ladder_broken"), NOT_IDENTITY)])
+            forward_filter(FILTERS.index("ladder_x_found")),
+            forward_filter(FILTERS.index("ladder_x_found_m1"), NOT_IDENTITY),
+            forward_filter(FILTERS.index("prev_ladder_x_found"), NOT_IDENTITY)])
         + sum_filters([
-            forward_filter(FILTERS.index("ladder_made")),
-            forward_filter(FILTERS.index("ladder_made_m1"), NOT_IDENTITY),
-            forward_filter(FILTERS.index("prev_ladder_made"), NOT_IDENTITY)])
-        + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_broken
-        + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_made
-        + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_broken_m1
-        + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_made_m1
+            forward_filter(FILTERS.index("ladder_o_found")),
+            forward_filter(FILTERS.index("ladder_o_found_m1"), NOT_IDENTITY),
+            forward_filter(FILTERS.index("prev_ladder_o_found"), NOT_IDENTITY)])
+        + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_x_found
+        + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_o_found
+        + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_x_found_m1
+        + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_o_found_m1
         + forward_filter(FILTERS.index("ladder_escape"), ID_S) # ladder_escape_move
         + forward_filter(FILTERS.index("ladder_atari"), ID_S)  # ladder_atari_move
         + ZERO*N_RESIDUAL_FILTERS*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS-N_DYNAMIC_RESIDUAL_FILTERS)
