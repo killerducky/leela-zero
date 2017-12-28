@@ -23,14 +23,15 @@ import operator
 
 INPUT_PLANES = 18
 HISTORY_PLANES = 8
-N_RESIDUAL_FILTERS = 16
+N_RESIDUAL_FILTERS = 32
 N_BOARD_FILTERS  = 5
 N_STATIC_RESIDUAL_FILTERS = 6
-N_DYNAMIC_RESIDUAL_FILTERS = 4
-#N_UNUSED_RESIDUAL_FILTERS = 1
+N_DYNAMIC_RESIDUAL_FILTERS = 6
+N_UNUSED_RESIDUAL_FILTERS = N_RESIDUAL_FILTERS - N_BOARD_FILTERS - N_STATIC_RESIDUAL_FILTERS - N_DYNAMIC_RESIDUAL_FILTERS
+assert(N_UNUSED_RESIDUAL_FILTERS >0)
 N_STATIC_FILTERS = N_BOARD_FILTERS + N_STATIC_RESIDUAL_FILTERS
 NORMALIZE_BIAS = 1.0
-DYNAMIC_LAYERS = 10
+DYNAMIC_LAYERS = 20
 
 FILTERS = [
     # Static Board filters
@@ -51,8 +52,10 @@ FILTERS = [
     # Dynamic patterns
     "ladder_broken",    # z=11
     "ladder_made",      # z=12
-    "ladder_broken_m1", # z=13 -- used for normalizing
-    "ladder_made_m1",   # z=14 -- used for normalizing
+    "prev_ladder_broken", # z=13 -- used to subtract out skip layer
+    "prev_ladder_made",   # z=14 -- used to subtract out skip layer
+    "ladder_broken_m1", # z=15 -- used for normalizing
+    "ladder_made_m1",   # z=16 -- used for normalizing
 ]
 
 
@@ -282,14 +285,22 @@ def addDynamicLayer(RESIDUAL_FILTERS):
         + forward_filter(range(0,N_STATIC_FILTERS))
         + ladder_broken
         + ladder_made
+        + forward_filter(FILTERS.index("ladder_broken")) # prev_ladder_broken
+        + forward_filter(FILTERS.index("ladder_made"))   # prev_ladder_made
         + ladder_broken_m1
         + ladder_made_m1
         + ZERO*N_RESIDUAL_FILTERS*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS-N_DYNAMIC_RESIDUAL_FILTERS)
     )
     RESIDUAL_FILTERS.append([]
         + ZERO*N_RESIDUAL_FILTERS*N_STATIC_FILTERS
-        + forward_filter(FILTERS.index("ladder_broken"))
-        + forward_filter(FILTERS.index("ladder_made"))
+        + sum_filters([
+            forward_filter(FILTERS.index("ladder_broken")),
+            forward_filter(FILTERS.index("ladder_broken_m1"), NOT_IDENTITY),
+            forward_filter(FILTERS.index("prev_ladder_broken"), NOT_IDENTITY)])
+        + sum_filters([
+            forward_filter(FILTERS.index("ladder_made")),
+            forward_filter(FILTERS.index("ladder_made_m1"), NOT_IDENTITY),
+            forward_filter(FILTERS.index("prev_ladder_made"), NOT_IDENTITY)])
         + ZERO*N_RESIDUAL_FILTERS*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS-2)
     )
 
