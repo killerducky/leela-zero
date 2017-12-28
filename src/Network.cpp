@@ -501,14 +501,14 @@ Network::Netresult Network::get_scored_moves_internal(
 
     // Get the moves
     convolve<1>(2, output_data, conv_pol_w, conv_pol_b, policy_data);
-    //myprintf("convolve\n");
-    //show_planes(policy_data, 19, 19, 2);
+    myprintf("convolve\n");
+    show_planes(policy_data, 19, 19, 2);
     batchnorm<361>(2, policy_data, bn_pol_w1.data(), bn_pol_w2.data());
-    //myprintf("bn\n");
-    //show_planes(policy_data, 19, 19, 2);
+    myprintf("bn\n");
+    show_planes(policy_data, 19, 19, 2);
     innerproduct<2*361, 362>(policy_data, ip_pol_w, ip_pol_b, policy_out);
-    //myprintf("ip\n");
-    //show_planes(policy_out, 19, 19, 1);
+    myprintf("ip\n");
+    show_planes(policy_out, 19, 19, 1);
     softmax(policy_out, softmax_data, cfg_softmax_temp);
     std::vector<float>& outputs = softmax_data;
 

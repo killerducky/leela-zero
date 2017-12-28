@@ -26,7 +26,7 @@ HISTORY_PLANES = 8
 N_RESIDUAL_FILTERS = 32
 N_BOARD_FILTERS  = 5
 N_STATIC_RESIDUAL_FILTERS = 6
-N_DYNAMIC_RESIDUAL_FILTERS = 6
+N_DYNAMIC_RESIDUAL_FILTERS = 8
 N_UNUSED_RESIDUAL_FILTERS = N_RESIDUAL_FILTERS - N_BOARD_FILTERS - N_STATIC_RESIDUAL_FILTERS - N_DYNAMIC_RESIDUAL_FILTERS
 assert(N_UNUSED_RESIDUAL_FILTERS >0)
 N_STATIC_FILTERS = N_BOARD_FILTERS + N_STATIC_RESIDUAL_FILTERS
@@ -56,6 +56,10 @@ FILTERS = [
     "prev_ladder_made",   # z=14 -- used to subtract out skip layer
     "ladder_broken_m1", # z=15 -- used for normalizing
     "ladder_made_m1",   # z=16 -- used for normalizing
+    # These should really be static, but they are built on top of ladder_escape/ladder_atari
+    # Need to build like a second static level
+    "ladder_escape_move", # z=17
+    "ladder_atari_move", # z=18
 ]
 
 
@@ -67,6 +71,7 @@ FILTERS = [
 # x = X or .
 # + = outside of board (only used in 2nd set of 3*3 strings)
 # ? = wildcard -- match anything
+# ! = anti-wildcard -- never match
 
 # [bias, pattern_string]
 # bias means must match more than that many points to activate
@@ -81,21 +86,26 @@ PATTERN_DICT = {
                            "XO." +
                            "OOX"],
 
+    # For ladder_maker and ladder_breaker, the ! in the lower left
+    # are a trick to avoid matching right next to the ladder_atari
+    # or ladder_escape pattern
     "ladder_maker"   : [0, "OOO" +
-                           "OOO" +
-                           "OOO"],
+                           "!OO" +
+                           "!!O"],
 
-    "ladder_breaker" : [-9,  "XXX" +
-                             "XXX" +
-                             "XXX" +
+    # -6 bias because in the middle hit 6 not_edge, for -6 total
+    "ladder_breaker" : [-6,  "XXX" +
+                             "!XX" +
+                             "!!X" +
                              "+++" +
-                             "+++" +
-                             "+++"],
+                             "!++" +
+                             "!!+"],
 
     "ladder_continue" : [8, "..." +
                             "..." +
                             "..."],
 
+    # Don't need this with the ! trick in maker/breaker patterns
     "ladder_continue2": [8, "..." +
                             "..." +
                             "OX."],
@@ -115,6 +125,9 @@ ID_NW    = [0.0, 0.0, 0.0,
 NOT_ID_NW    = [0.0, 0.0, 0.0,
             0.0, 0.0, 0.0,
             0.0, 0.0, -1.0]
+ID_S     = [0.0, 1.0, 0.0,
+            0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0]
 SUM = [1.0, 1.0, 1.0,
        1.0, 1.0, 1.0,
        1.0, 1.0, 1.0]
@@ -197,11 +210,21 @@ def str2filter(s):
     f += ZERO*(N_RESIDUAL_FILTERS-N_BOARD_FILTERS)
     return f
 
-def forward_filter(r, direction=IDENTITY):
+def forward_filter(r, direction=IDENTITY, multiplier=1):
     if type(r) is int: r = [r]
+    if multiplier != 1:
+        direction = list(x*multiplier for x in direction)
+        assert(1)  # Not used for now
     f = []
     for num in r:
         f += ZERO*num + direction + ZERO*(N_RESIDUAL_FILTERS-(num+1))
+    return f
+
+def filter_1x1(r, direction):
+    if type(r) is int: r = [r]
+    f = []
+    for num in r:
+        f += [0.0]*num + direction + [0.0]*(N_RESIDUAL_FILTERS-(num+1))
     return f
 
 # TODO: There must be some way to do this directly
@@ -212,13 +235,13 @@ def sum_filters(filters):
         f_total = list(map(operator.add, f_total, f))
     return f_total
 
-def ip_identity(rows, cols, filters):
+def ip_identity(inputs, inchannels, outputs):
     I = []
-    for c in range(cols):
-        for f in range(filters):
-            for r in range(rows):
-                if r and c and r == c:
-                    I.append(1.1)
+    for onum in range(outputs):
+        for chnum in range(inchannels):
+            for inum in range(inputs):
+                if inum == onum:
+                    I.append(1.0)
                 else:
                     I.append(0.0)
     return I
@@ -289,6 +312,8 @@ def addDynamicLayer(RESIDUAL_FILTERS):
         + forward_filter(FILTERS.index("ladder_made"))   # prev_ladder_made
         + ladder_broken_m1
         + ladder_made_m1
+        + forward_filter(FILTERS.index("ladder_escape"), ID_S) # ladder_escape_move
+        + forward_filter(FILTERS.index("ladder_atari"), ID_S)  # ladder_atari_move
         + ZERO*N_RESIDUAL_FILTERS*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS-N_DYNAMIC_RESIDUAL_FILTERS)
     )
     RESIDUAL_FILTERS.append([]
@@ -301,7 +326,13 @@ def addDynamicLayer(RESIDUAL_FILTERS):
             forward_filter(FILTERS.index("ladder_made")),
             forward_filter(FILTERS.index("ladder_made_m1"), NOT_IDENTITY),
             forward_filter(FILTERS.index("prev_ladder_made"), NOT_IDENTITY)])
-        + ZERO*N_RESIDUAL_FILTERS*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS-2)
+        + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_broken
+        + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_made
+        + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_broken_m1
+        + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_made_m1
+        + forward_filter(FILTERS.index("ladder_escape"), ID_S) # ladder_escape_move
+        + forward_filter(FILTERS.index("ladder_atari"), ID_S)  # ladder_atari_move
+        + ZERO*N_RESIDUAL_FILTERS*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS-N_DYNAMIC_RESIDUAL_FILTERS)
     )
 
 
@@ -434,11 +465,16 @@ def main():
 
 
     # Policy
-    print(to_string([1.0]*N_RESIDUAL_FILTERS*2))
+    # N_RESIDUAL_FILTERS -- inchannels
+    # 2 -- filters
+    #print(to_string([1.0]*N_RESIDUAL_FILTERS*2))
+    print(to_string(
+        filter_1x1(FILTERS.index("ladder_escape_move"), [100.0]) +
+        filter_1x1(FILTERS.index("ladder_atari_move"), [100.0])))
     print(to_string([0.0]*2)) # conv_pol_b
     print(to_string([0.0]*2)) # bn_pol_w1
     print(to_string([1.0]*2)) # bn_pol_w2 -- variance
-    print(to_string(ip_identity(361, 362, 2)))
+    print(to_string(ip_identity(361, 2, 362)))
     print(to_string([0.0]*362)) # ip_pol_b
 
     # Value
