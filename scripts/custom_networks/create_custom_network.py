@@ -24,9 +24,9 @@ import operator
 INPUT_PLANES = 18
 HISTORY_PLANES = 8
 N_RESIDUAL_FILTERS = 32
-N_BOARD_FILTERS  = 5
-N_STATIC_RESIDUAL_FILTERS = 6
-N_DYNAMIC_RESIDUAL_FILTERS = 10
+N_BOARD_FILTERS  = 6
+N_STATIC_RESIDUAL_FILTERS = 7
+N_DYNAMIC_RESIDUAL_FILTERS = 14
 N_UNUSED_RESIDUAL_FILTERS = N_RESIDUAL_FILTERS - N_BOARD_FILTERS - N_STATIC_RESIDUAL_FILTERS - N_DYNAMIC_RESIDUAL_FILTERS
 assert(N_UNUSED_RESIDUAL_FILTERS >0)
 N_STATIC_FILTERS = N_BOARD_FILTERS + N_STATIC_RESIDUAL_FILTERS
@@ -35,34 +35,38 @@ DYNAMIC_LAYERS = 20
 
 FILTERS = [
     # Static Board filters
-    "tomove",           # z=0
-    "my_stones",        # z=1  (O)
-    "opp_stones",       # z=2  (X)
-    "empty",            # z=3  (.)
-    "not_edge",         # z=4
+    "black_tomove",     # z=0
+    "white_tomove",     # z=1
+    "my_stones",        # z=2  (O)
+    "opp_stones",       # z=3  (X)
+    "empty",            # z=4  (.)
+    "not_edge",         # z=5
 
     # Static Patterns
-    "ladder_escape",    # z=5
-    "ladder_atari",     # z=6
-    "ladder_o",         # z=7  (O)
-    "ladder_x",         # z=8  (X)
-    "ladder_continue",  # z=9  (.)
-    "ladder_continue2", # z=10
-    #"ladder_edge",     #      (+)
+    "ladder_escape",    # z=6
+    "ladder_atari",     # z=7
+    "ladder_o",         # z=8  (O)
+    "ladder_x",         # z=9  (X)
+    "ladder_continue",  # z=10 (.)
+    "ladder_continue2", # z=11
+    "ladder_edge",      # z=12 (+)
 
     # Dynamic patterns
-    "ladder_x_found",      # z=11
-    "ladder_o_found",      # z=12
-    "prev_ladder_x_found", # z=13 -- used to subtract out skip layer
-    "prev_ladder_o_found", # z=14 -- used to subtract out skip layer
-    "ladder_x_found_m1",   # z=15 -- used for normalizing
-    "ladder_o_found_m1",   # z=16 -- used for normalizing
-    # The next 2 should really be static, but they are built on top of ladder_escape/ladder_atari
-    # Need to build like a second static level
-    "ladder_escape_move",  # z=17
-    "ladder_atari_move",   # z=18
-    "ladder_escape_fail",  # z=19
-    "ladder_atari_fail",   # z=20
+    "ladder_x_found",      # z=13
+    "ladder_o_found",      # z=14
+    "prev_ladder_x_found", # z=15 -- used to subtract out skip layer
+    "prev_ladder_o_found", # z=16 -- used to subtract out skip layer
+    "ladder_x_found_m1",   # z=17 -- used for normalizing
+    "ladder_o_found_m1",   # z=18 -- used for normalizing
+    # The following act more like static patterns, but are calculated later
+    "black_ladder_escape_move",  # z=19
+    "black_ladder_atari_move",   # z=20
+    "black_ladder_escape_fail",  # z=21
+    "black_ladder_atari_fail",   # z=22
+    "white_ladder_escape_move",  # z=23
+    "white_ladder_atari_move",   # z=24
+    "white_ladder_escape_fail",  # z=25
+    "white_ladder_atari_fail",   # z=26
 ]
 
 assert (len(FILTERS) == N_BOARD_FILTERS + N_STATIC_RESIDUAL_FILTERS + N_DYNAMIC_RESIDUAL_FILTERS)
@@ -99,9 +103,12 @@ PATTERN_DICT = {
                            "!OO" +
                            "!!O"],
 
-    "ladder_x"       : [0,  "XXX" +
+    "ladder_x"       : [-9, "XXX" +
                             "!XX" +
-                            "!!X"],
+                            "!!X" +
+                            "+++" +
+                            "+++" +
+                            "+++"],
 
     # -9 bias because in the middle hit 9 not_edge, for -9 total
     "ladder_edge"     : [-9, "+++" +
@@ -151,52 +158,60 @@ ZERO = [0.0, 0.0, 0.0,
         0.0, 0.0, 0.0]
 
 BOARD_FILTERS = {
-    "tomove"  :  ([]
-        + ZERO*1                       # Most recent opponent?
+    "black_tomove"  :  ([]
+        + ZERO*1                       # Most recent me
         + ZERO*(HISTORY_PLANES-1)
-        + ZERO*1                       # Most recent me?
+        + ZERO*1                       # Most recent opp
         + ZERO*(HISTORY_PLANES-1)
-        + IDENTITY                     # White/Black to move
-        + ZERO),                       # White/Black to move
+        + IDENTITY                     # Black to move
+        + ZERO),                       # White to move
+    "white_tomove"  :  ([]
+        + ZERO*1                       # Most recent me
+        + ZERO*(HISTORY_PLANES-1)
+        + ZERO*1                       # Most recent opp
+        + ZERO*(HISTORY_PLANES-1)
+        + ZERO                         # Black to move
+        + IDENTITY),                   # White to move
     "my_stones" : ([]
-        + IDENTITY*1                   # Most recent opponent?
+        + IDENTITY*1                   # Most recent me
         + ZERO*(HISTORY_PLANES-1)
-        + ZERO*1                       # Most recent me?
+        + ZERO*1                       # Most recent opp
         + ZERO*(HISTORY_PLANES-1)
         + ZERO                         # White/Black to move
         + ZERO),                       # White/Black to move
     "opp_stones" : ([]
-        + ZERO*1                       # Most recent opponent?
+        + ZERO*1                       # Most recent me
         + ZERO*(HISTORY_PLANES-1)
-        + IDENTITY*1                   # Most recent me?
+        + IDENTITY*1                   # Most recent opp
         + ZERO*(HISTORY_PLANES-1)
         + ZERO                         # White/Black to move
         + ZERO),                       # White/Black to move
     "empty" : ([]
-        + NOT_IDENTITY*1               # Most recent opponent?
+        + NOT_IDENTITY*1               # Most recent me
         + ZERO*(HISTORY_PLANES-1)
-        + NOT_IDENTITY*1               # Most recent me?
+        + NOT_IDENTITY*1               # Most recent opp
         + ZERO*(HISTORY_PLANES-1)
         + IDENTITY                     # White/Black to move  -- TODO: This plus next line is a quick and dirty way to add bias of 1.0
         + IDENTITY),                   # White/Black to move
     "not_edge" : ([]
-        + ZERO*1                       # Most recent opponent?
+        + ZERO*1                       # Most recent me
         + ZERO*(HISTORY_PLANES-1)
-        + ZERO*1                       # Most recent me?
+        + ZERO*1                       # Most recent opp
         + ZERO*(HISTORY_PLANES-1)
         + IDENTITY                     # White/Black to move
         + IDENTITY),                   # White/Black to move
     "init_to_zero" : ([]
-        + ZERO*1                       # Most recent opponent?
+        + ZERO*1                       # Most recent me
         + ZERO*(HISTORY_PLANES-1)
-        + ZERO*1                       # Most recent me?
+        + ZERO*1                       # Most recent opp
         + ZERO*(HISTORY_PLANES-1)
         + ZERO                         # White/Black to move
         + ZERO),                       # White/Black to move
 }
 
 BOARD_FILTER = ([]
-    + BOARD_FILTERS["tomove"]
+    + BOARD_FILTERS["black_tomove"]
+    + BOARD_FILTERS["white_tomove"]
     + BOARD_FILTERS["my_stones"]
     + BOARD_FILTERS["opp_stones"]
     + BOARD_FILTERS["empty"]
@@ -204,24 +219,27 @@ BOARD_FILTER = ([]
     + BOARD_FILTERS["init_to_zero"]*(N_RESIDUAL_FILTERS-N_BOARD_FILTERS)
 )
 
+# TODO: Make a loop for this instead of this hardcoded thing
 def str2filter(s):
-    # TODO: Support all rotations. For now match rotation of "heatmap 0"
+    f = str2filter_9x9(s[0:9])
     if len(s)==9:
-        s = s[6:9]+s[3:6]+s[0:3]
+        pass
     elif len(s)==18:
-        s = s[6:9]+s[3:6]+s[0:3] + s[15:18]+s[12:15]+s[9:12]
-        raise
+        f = sum_filters([f, str2filter_9x9(s[9:18])])
     else:
         raise
+    return f
+
+def str2filter_9x9(s):
+    # TODO: Support all rotations. For now match rotation of "heatmap 0"
+    s = s[6:9]+s[3:6]+s[0:3]
     f = []
-    f += ZERO # to move
+    f += ZERO # black_tomove
+    f += ZERO # white_tomove
     f += list(map(lambda w : float(w=="?" or w=="O" or w=="o"), [w for w in s[0:9]]))  # my_stones
     f += list(map(lambda w : float(w=="?" or w=="X" or w=="x"), [w for w in s[0:9]]))  # opp_stones
     f += list(map(lambda w : float(w=="?" or w=="." or w=="x" or w=="o"), [w for w in s[0:9]]))  # empty
-    if "+" in s:
-        f += list(map(lambda w : -1.0*float(w=="?" or w=="+"), [w for w in s[0:9]]))  # not_edge
-    else:
-        f += ZERO
+    f += list(map(lambda w : (0.0, -1.0)[w=="?" or w=="+"], [w for w in s[0:9]]))  # not_edge
     f += ZERO*(N_RESIDUAL_FILTERS-N_BOARD_FILTERS)
     return f
 
@@ -258,7 +276,10 @@ def ip_identity(inputs, inchannels, outputs):
         for chnum in range(inchannels):
             for inum in range(inputs):
                 if inum == onum:
-                    I.append(1.0)
+                    if chnum == 0:
+                        I.append(1.0)
+                    else:
+                        I.append(-1.0)
                 else:
                     I.append(0.0)
     return I
@@ -281,6 +302,7 @@ def relu(x):
     if x<0: return 0
     return x
 
+# Example step function using 3 relus in 2 layers
 def normalize_test():
     for i in range(5):
         o1a = relu(i)
@@ -299,8 +321,6 @@ def addDynamicLayer(RESIDUAL_FILTERS):
     #
     # x_found = x || ((continue || continue2) & nw(x_found)
     # o_found = o || ((continue || continue2) & nw(o_found)
-    ladder_escape_fail = ZERO*N_RESIDUAL_FILTERS
-    ladder_atari_fail = ZERO*N_RESIDUAL_FILTERS
     ladder_x_found = sum_filters([
         forward_filter(FILTERS.index("ladder_x")),
         forward_filter(FILTERS.index("ladder_x")),
@@ -329,10 +349,22 @@ def addDynamicLayer(RESIDUAL_FILTERS):
         + forward_filter(FILTERS.index("ladder_o_found")) # prev_ladder_o_found
         + ladder_x_found_m1
         + ladder_o_found_m1
-        + forward_filter(FILTERS.index("ladder_escape"), ID_S) # ladder_escape_move
-        + forward_filter(FILTERS.index("ladder_atari"), ID_S)  # ladder_atari_move
-        + ladder_escape_fail
-        + ladder_atari_fail
+        + sum_filters([ # black_ladder_escape_move
+            forward_filter(FILTERS.index("ladder_escape"), ID_S),
+            forward_filter(FILTERS.index("white_tomove"), NOT_IDENTITY)])
+        + sum_filters([ # black_ladder_atari_move
+            forward_filter(FILTERS.index("ladder_atari"), ID_S),
+            forward_filter(FILTERS.index("white_tomove"), NOT_IDENTITY)])
+        + ZERO*N_RESIDUAL_FILTERS # black_ladder_escape_fail
+        + ZERO*N_RESIDUAL_FILTERS # black_ladder_atari_fail
+        + sum_filters([ # white_ladder_escape_move
+            forward_filter(FILTERS.index("ladder_escape"), ID_S),
+            forward_filter(FILTERS.index("black_tomove"), NOT_IDENTITY)])
+        + sum_filters([ # white_ladder_atari_move
+            forward_filter(FILTERS.index("ladder_atari"), ID_S),
+            forward_filter(FILTERS.index("black_tomove"), NOT_IDENTITY)])
+        + ZERO*N_RESIDUAL_FILTERS # white_ladder_escape_fail
+        + ZERO*N_RESIDUAL_FILTERS # white_ladder_atari_fail
         + ZERO*N_RESIDUAL_FILTERS*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS-N_DYNAMIC_RESIDUAL_FILTERS)
     )
     # Normalize
@@ -350,10 +382,22 @@ def addDynamicLayer(RESIDUAL_FILTERS):
         + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_o_found
         + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_x_found_m1
         + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_o_found_m1
-        + forward_filter(FILTERS.index("ladder_escape"), ID_S) # ladder_escape_move
-        + forward_filter(FILTERS.index("ladder_atari"), ID_S)  # ladder_atari_move
-        + ladder_escape_fail
-        + ladder_atari_fail
+        + sum_filters([ # black_ladder_escape_move  TODO: Normalize these, they are growing
+            forward_filter(FILTERS.index("ladder_escape"), ID_S),
+            forward_filter(FILTERS.index("white_tomove"), NOT_IDENTITY)])
+        + sum_filters([ # black_ladder_atari_move
+            forward_filter(FILTERS.index("ladder_atari"), ID_S),
+            forward_filter(FILTERS.index("white_tomove"), NOT_IDENTITY)])
+        + ZERO*N_RESIDUAL_FILTERS # black_ladder_escape_fail
+        + ZERO*N_RESIDUAL_FILTERS # black_ladder_atari_fail
+        + sum_filters([ # white_ladder_escape_move
+            forward_filter(FILTERS.index("ladder_escape"), ID_S),
+            forward_filter(FILTERS.index("black_tomove"), NOT_IDENTITY)])
+        + sum_filters([ # white_ladder_atari_move
+            forward_filter(FILTERS.index("ladder_atari"), ID_S),
+            forward_filter(FILTERS.index("black_tomove"), NOT_IDENTITY)])
+        + ZERO*N_RESIDUAL_FILTERS # white_ladder_escape_fail
+        + ZERO*N_RESIDUAL_FILTERS # white_ladder_atari_fail
         + ZERO*N_RESIDUAL_FILTERS*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS-N_DYNAMIC_RESIDUAL_FILTERS)
     )
 
@@ -361,22 +405,19 @@ def addDynamicLayer(RESIDUAL_FILTERS):
 def buildResidualFilters():
     RESIDUAL_FILTERS = []
     RESIDUAL_FILTERS.append([]
-        #"my_stones",
-        #"opp_stones",
         # First ones just copy forward
         + forward_filter(range(0,N_BOARD_FILTERS))
         # New
-        + str2filter(PATTERN_DICT[FILTERS[5]][1])
         + str2filter(PATTERN_DICT[FILTERS[6]][1])
         + str2filter(PATTERN_DICT[FILTERS[7]][1])
         + str2filter(PATTERN_DICT[FILTERS[8]][1])
         + str2filter(PATTERN_DICT[FILTERS[9]][1])
         + str2filter(PATTERN_DICT[FILTERS[10]][1])
+        + str2filter(PATTERN_DICT[FILTERS[11]][1])
+        + str2filter(PATTERN_DICT[FILTERS[12]][1])
         + ZERO*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS)*N_RESIDUAL_FILTERS
     )
     RESIDUAL_FILTERS.append([]
-        #"my_stones",
-        #"opp_stones",
         # Clear, skip connection will fill back in
         + ZERO*N_BOARD_FILTERS*N_RESIDUAL_FILTERS
         # These are new in first layer, copy forward
@@ -410,18 +451,30 @@ def buildResidualFilters():
     ladder_escape_fail = sum_filters([
         forward_filter(FILTERS.index("ladder_escape"), ID_S),
         forward_filter(FILTERS.index("ladder_x_found"), ID_E),
-        #forward_filter(FILTERS.index("not_edge"), ZERO)])  # bias
         forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # bias
     ladder_atari_fail = sum_filters([
         forward_filter(FILTERS.index("ladder_atari"), ID_S),
         forward_filter(FILTERS.index("ladder_x_found"), ID_NE),
-        #forward_filter(FILTERS.index("not_edge"), ZERO)])  # bias
         forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # bias
     RESIDUAL_FILTERS.append([]
-        + forward_filter(range(0,FILTERS.index("ladder_escape_fail")), ZERO)
-        + ladder_escape_fail
-        + ladder_atari_fail
-        + forward_filter(range(FILTERS.index("ladder_atari_fail")+1,N_RESIDUAL_FILTERS), ZERO)
+        + forward_filter(range(0,FILTERS.index("black_ladder_escape_move")), ZERO)
+        + forward_filter(FILTERS.index("black_ladder_escape_move"), ZERO)
+        + forward_filter(FILTERS.index("black_ladder_atari_move"), ZERO)
+        + sum_filters([ # black_ladder_escape_fail
+            ladder_escape_fail,
+            forward_filter(FILTERS.index("white_tomove"), NOT_IDENTITY)])
+        + sum_filters([ # black_ladder_atari_fail
+            ladder_atari_fail,
+            forward_filter(FILTERS.index("white_tomove"), NOT_IDENTITY)])
+        + forward_filter(FILTERS.index("white_ladder_escape_move"), ZERO)
+        + forward_filter(FILTERS.index("white_ladder_atari_move"), ZERO)
+        + sum_filters([ # white_ladder_escape_fail
+            ladder_escape_fail,
+            forward_filter(FILTERS.index("black_tomove"), NOT_IDENTITY)])
+        + sum_filters([ # white_ladder_atari_fail
+            ladder_atari_fail,
+            forward_filter(FILTERS.index("black_tomove"), NOT_IDENTITY)])
+        + forward_filter(range(FILTERS.index("white_ladder_atari_fail")+1,N_RESIDUAL_FILTERS), ZERO)
     )
     return RESIDUAL_FILTERS
 
@@ -457,12 +510,13 @@ def main():
     print(to_string([0.0]*N_RESIDUAL_FILTERS)) # conv_biases
     # TODO: Generalize. For now special case only ladder_continue bias
     print(to_string([0.0]*N_BOARD_FILTERS
-           + [PATTERN_DICT[FILTERS[5]][0]] # batchnorm_means
            + [PATTERN_DICT[FILTERS[6]][0]] # batchnorm_means
            + [PATTERN_DICT[FILTERS[7]][0]] # batchnorm_means
            + [PATTERN_DICT[FILTERS[8]][0]] # batchnorm_means
            + [PATTERN_DICT[FILTERS[9]][0]] # batchnorm_means
            + [PATTERN_DICT[FILTERS[10]][0]] # batchnorm_means
+           + [PATTERN_DICT[FILTERS[11]][0]] # batchnorm_means
+           + [PATTERN_DICT[FILTERS[12]][0]] # batchnorm_means
            + [0.0]*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS))) # batchnorm_means
     r_layer += 1
     print(to_string([1.0]*N_RESIDUAL_FILTERS)) # batchnorm_variances
@@ -522,9 +576,21 @@ def main():
     assert(r_layer+1==len(RESIDUAL_FILTERS))
 
     # Policy
-    print(to_string(
-        filter_1x1([FILTERS.index("ladder_escape_move"), FILTERS.index("ladder_atari_move")], [8]) +
-        filter_1x1(FILTERS.index("empty"), [0])))
+    # policy0 contains good features, ip_identity multiplies them by 1.0
+    # General bonus for continuing all ladders
+    policy0 = [0.0]*N_RESIDUAL_FILTERS
+    policy0[FILTERS.index("black_ladder_escape_move")] = 8.0
+    policy0[FILTERS.index("black_ladder_atari_move")] = 8.0
+    policy0[FILTERS.index("white_ladder_escape_move")] = 8.0
+    policy0[FILTERS.index("white_ladder_atari_move")] = 8.0
+    # policy1 contains bad features, ip_identity multiplies them by -1.0
+    # Penalty for continuing ladders that fail
+    policy1 = [0.0]*N_RESIDUAL_FILTERS
+    policy1[FILTERS.index("black_ladder_escape_fail")] = 16.0
+    policy1[FILTERS.index("black_ladder_atari_fail")] = 16.0
+    policy1[FILTERS.index("white_ladder_escape_fail")] = 16.0
+    policy1[FILTERS.index("white_ladder_atari_fail")] = 16.0
+    print(to_string(policy0 + policy1))
     print(to_string([0.0]*2)) # conv_pol_b
     print(to_string([0.0]*2)) # bn_pol_w1
     print(to_string([1.0]*2)) # bn_pol_w2 -- variance
@@ -532,14 +598,27 @@ def main():
     print(to_string([0.0]*362)) # ip_pol_b
 
     # Value
-    print(to_string([1.0]*N_RESIDUAL_FILTERS)) # conv_val_w
+    value0 = [0.0]*N_RESIDUAL_FILTERS
+    value0[FILTERS.index("black_ladder_escape_move")] =  0.2
+    value0[FILTERS.index("black_ladder_atari_move")]  =  0.2
+    value0[FILTERS.index("black_ladder_escape_fail")] = -1.0
+    value0[FILTERS.index("black_ladder_atari_fail")]  = -1.0
+    value0[FILTERS.index("white_ladder_escape_move")] = -0.2
+    value0[FILTERS.index("white_ladder_atari_move")]  = -0.2
+    value0[FILTERS.index("white_ladder_escape_fail")] =  1.0
+    value0[FILTERS.index("white_ladder_atari_fail")]  =  1.0
+    print(to_string(value0)) # conv_val_w
     print(to_string([0.0])) # conv_val_b -- bias
-    print(to_string([0.0])) # bn_val_w1 -- bias
+    print(to_string([-10.0])) # bn_val_w1 -- bias  <<<< all 361 will have +10 so don't lose negative numbers in the relu
     print(to_string([1.0])) # bn_val_w2 -- variance
-    print(to_string([0.0]*1*361*256)) # ip1_val_w -- weight
-    print(to_string([1.0]*256)) # ip1_val_b -- bias
-    print(to_string([0.0]*1*256*1)) # ip2_val_w -- weight
-    print(to_string([1.0]*1)) # ip_val_b -- bias
+    # (relu here)
+    print(to_string([1.0]*1*361*256)) # ip1_val_w -- weight
+    print(to_string([0.0]*256)) # ip1_val_b -- bias
+    # (relu here)
+    ip_val_w = [0.0]*1*256*1
+    ip_val_w[0] = 1.0 # Just take one copy, they're all identical
+    print(to_string(ip_val_w)) # ip2_val_w -- weight
+    print(to_string([-361.0*10.0]*1)) # ip_val_b -- bias  <<<< subtract out all 361*10
 
 
 if __name__ == "__main__":

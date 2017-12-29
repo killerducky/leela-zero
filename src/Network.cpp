@@ -284,6 +284,15 @@ void convolve(size_t outputs,
     const auto filter_dim = filter_len * input_channels;
     assert(outputs * board_squares == output.size());
 
+    //if (filter_size==1) {
+    //    myprintf("aolsen input_channels=%d\n", input_channels);
+    //    myprintf("aolsen filter_dim=%d\n", filter_dim);
+    //    for (const auto& w : weights) {
+    //        myprintf("%f ", w);
+    //    }
+    //    myprintf("\n");
+    //}
+
     std::vector<float> col(filter_dim * width * height);
     im2col<filter_size>(input_channels, input, col);
 
@@ -501,7 +510,7 @@ Network::Netresult Network::get_scored_moves_internal(
 
     // Get the moves
     convolve<1>(2, output_data, conv_pol_w, conv_pol_b, policy_data);
-    myprintf("convolve\n");
+    myprintf("aolsen policy convolve\n");
     show_planes(policy_data, 19, 19, 2);
     batchnorm<361>(2, policy_data, bn_pol_w1.data(), bn_pol_w2.data());
     myprintf("bn\n");
@@ -513,10 +522,15 @@ Network::Netresult Network::get_scored_moves_internal(
     std::vector<float>& outputs = softmax_data;
 
     // Now get the score
+    myprintf("aolsen value convolve\n");
     convolve<1>(1, output_data, conv_val_w, conv_val_b, value_data);
+    show_planes(value_data, 19, 19, 1);
+    myprintf("aolsen value bn\n");
     batchnorm<361>(1, value_data, bn_val_w1.data(), bn_val_w2.data());
+    show_planes(value_data, 19, 19, 1);
     innerproduct<361, 256>(value_data, ip1_val_w, ip1_val_b, winrate_data);
     innerproduct<256, 1>(winrate_data, ip2_val_w, ip2_val_b, winrate_out);
+    myprintf("aolsen value wrd[0]=%f wrd[1]=%f winrate_out=%f\n", winrate_data[0], winrate_data[1], winrate_out[0]);
 
     // Sigmoid
     float winrate_sig = (1.0f + std::tanh(winrate_out[0])) / 2.0f;
