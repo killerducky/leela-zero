@@ -86,8 +86,11 @@ bool UCTNode::create_children(std::atomic<int> & nodecount,
     m_is_expanding = true;
     lock.unlock();
 
+    // aolsen
+    //auto raw_netlist = Network::get_scored_moves(
+    //    &state, Network::Ensemble::RANDOM_ROTATION);
     auto raw_netlist = Network::get_scored_moves(
-        &state, Network::Ensemble::RANDOM_ROTATION);
+        &state, Network::Ensemble::DIRECT, 0);
 
     // DCNN returns winrate as side to move
     auto net_eval = raw_netlist.second;
@@ -173,8 +176,11 @@ void UCTNode::kill_superkos(const KoState& state) {
 }
 
 float UCTNode::eval_state(GameState& state) {
+    // aolsen
+    //auto raw_netlist = Network::get_scored_moves(
+    //    &state, Network::Ensemble::RANDOM_ROTATION);
     auto raw_netlist = Network::get_scored_moves(
-        &state, Network::Ensemble::RANDOM_ROTATION);
+        &state, Network::Ensemble::DIRECT, 0);
 
     // DCNN returns winrate as side to move
     auto net_eval = raw_netlist.second;
