@@ -227,7 +227,6 @@ void Network::initialize(void) {
     }
     wtfile.close();
 #ifdef USE_OPENCL
-    myprintf("done parsing weights\n");
     // input
     size_t weight_index = 0;
     opencl_net.push_convolve(3, conv_weights[weight_index],
@@ -237,7 +236,6 @@ void Network::initialize(void) {
     weight_index++;
 
     // residual blocks
-    myprintf("RBs\n");
     for (auto i = size_t{0}; i < residual_blocks; i++) {
         opencl_net.push_residual(3, conv_weights[weight_index],
                                     conv_biases[weight_index],
@@ -283,15 +281,6 @@ void convolve(size_t outputs,
     const auto input_channels = weights.size() / (biases.size() * filter_len);
     const auto filter_dim = filter_len * input_channels;
     assert(outputs * board_squares == output.size());
-
-    //if (filter_size==1) {
-    //    myprintf("aolsen input_channels=%d\n", input_channels);
-    //    myprintf("aolsen filter_dim=%d\n", filter_dim);
-    //    for (const auto& w : weights) {
-    //        myprintf("%f ", w);
-    //    }
-    //    myprintf("\n");
-    //}
 
     std::vector<float> col(filter_dim * width * height);
     im2col<filter_size>(input_channels, input, col);
@@ -502,7 +491,6 @@ Network::Netresult Network::get_scored_moves_internal(
 #elif defined(USE_BLAS) && !defined(USE_OPENCL)
     forward(input_data, output_data);
 #endif
-
     // We calculate both network heads on the CPU. They are irregular
     // and have a much lower compute densitity than the residual layers,
     // which means they don't get much - if any - speedup from being on the
@@ -510,27 +498,16 @@ Network::Netresult Network::get_scored_moves_internal(
 
     // Get the moves
     convolve<1>(2, output_data, conv_pol_w, conv_pol_b, policy_data);
-    myprintf("aolsen policy convolve\n");
-    show_planes(policy_data, 19, 19, 2);
     batchnorm<361>(2, policy_data, bn_pol_w1.data(), bn_pol_w2.data());
-    myprintf("bn\n");
-    show_planes(policy_data, 19, 19, 2);
     innerproduct<2*361, 362>(policy_data, ip_pol_w, ip_pol_b, policy_out);
-    myprintf("ip\n");
-    show_planes(policy_out, 19, 19, 1);
     softmax(policy_out, softmax_data, cfg_softmax_temp);
     std::vector<float>& outputs = softmax_data;
 
     // Now get the score
-    myprintf("aolsen value convolve\n");
     convolve<1>(1, output_data, conv_val_w, conv_val_b, value_data);
-    show_planes(value_data, 19, 19, 1);
-    myprintf("aolsen value bn\n");
     batchnorm<361>(1, value_data, bn_val_w1.data(), bn_val_w2.data());
-    show_planes(value_data, 19, 19, 1);
     innerproduct<361, 256>(value_data, ip1_val_w, ip1_val_b, winrate_data);
     innerproduct<256, 1>(winrate_data, ip2_val_w, ip2_val_b, winrate_out);
-    myprintf("aolsen value wrd[0]=%f wrd[1]=%f winrate_out=%f\n", winrate_data[0], winrate_data[1], winrate_out[0]);
 
     // Sigmoid
     float winrate_sig = (1.0f + std::tanh(winrate_out[0])) / 2.0f;
@@ -553,30 +530,6 @@ Network::Netresult Network::get_scored_moves_internal(
 
     return std::make_pair(result, winrate_sig);
 }
-
-void Network::show_planes(const std::vector<net_t> plane, int xsize, int ysize, int zsize) {
-    std::vector<std::string> display_map;
-    std::string line;
-    for (unsigned int z = 0; z < zsize; z++) {
-        line += "aolsen z=";
-        line += boost::str(boost::format("%d") % z);
-        display_map.push_back(line);
-        line.clear();
-        for (unsigned int y = 0; y < ysize; y++) {
-            for (unsigned int x = 0; x < xsize; x++) {
-                line += boost::str(boost::format("%0.1f ") % plane[z*ysize*xsize+y*xsize+x]);
-                if (x == xsize-1) {
-                    display_map.push_back(line);
-                    line.clear();
-                }
-            }
-        }
-    }
-    for (int i = display_map.size() - 1; i >= 0; --i) {
-        myprintf("%s\n", display_map[i].c_str());
-    }
-}
-
 
 void Network::show_heatmap(FastState * state, Netresult& result, bool topmoves) {
     auto moves = result.first;

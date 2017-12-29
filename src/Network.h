@@ -50,7 +50,6 @@ public:
 
     static void initialize();
     static void benchmark(GameState * state, int iterations = 1600);
-    static void show_planes(const std::vector<net_t> plane, int xsize, int ysize, int zsize);
     static void show_heatmap(FastState * state, Netresult & netres,
                              bool topmoves);
     static void softmax(const std::vector<float>& input,
