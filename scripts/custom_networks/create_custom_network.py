@@ -36,8 +36,8 @@ DYNAMIC_LAYERS = 20
 FILTERS = [
     # Static Board filters
     "tomove",           # z=0
-    "escaper_stones",   # z=1  (O)
-    "chaser_stones",    # z=2  (X)
+    "my_stones",        # z=1  (O)
+    "opp_stones",       # z=2  (X)
     "empty",            # z=3  (.)
     "not_edge",         # z=4
 
@@ -46,30 +46,30 @@ FILTERS = [
     "ladder_atari",     # z=6
     "ladder_o",         # z=7  (O)
     "ladder_x",         # z=8  (X)
-    #"ladder_edge",     #      (+)
     "ladder_continue",  # z=9  (.)
     "ladder_continue2", # z=10
+    #"ladder_edge",     #      (+)
 
     # Dynamic patterns
-    "ladder_x_found",    # z=11
+    "ladder_x_found",      # z=11
     "ladder_o_found",      # z=12
     "prev_ladder_x_found", # z=13 -- used to subtract out skip layer
-    "prev_ladder_o_found",   # z=14 -- used to subtract out skip layer
-    "ladder_x_found_m1", # z=15 -- used for normalizing
+    "prev_ladder_o_found", # z=14 -- used to subtract out skip layer
+    "ladder_x_found_m1",   # z=15 -- used for normalizing
     "ladder_o_found_m1",   # z=16 -- used for normalizing
     # The next 2 should really be static, but they are built on top of ladder_escape/ladder_atari
     # Need to build like a second static level
-    "ladder_escape_move", # z=17
-    "ladder_atari_move", # z=18
-    "ladder_escape_fail", # z=19
-    "ladder_atari_fail", # z=20
+    "ladder_escape_move",  # z=17
+    "ladder_atari_move",   # z=18
+    "ladder_escape_fail",  # z=19
+    "ladder_atari_fail",   # z=20
 ]
 
 assert (len(FILTERS) == N_BOARD_FILTERS + N_STATIC_RESIDUAL_FILTERS + N_DYNAMIC_RESIDUAL_FILTERS)
 
 # TODO: Make into 5x5 patterns for more context
 # O = escaper's stones
-# X = chaser's stones
+# X = opp_stones's stones
 # . = empty
 # o = O or .
 # x = X or .
@@ -112,7 +112,6 @@ PATTERN_DICT = {
                             "..." +
                             "..."],
 
-    # Don't need this with the ! trick in o/x patterns
     "ladder_continue2": [8, "..." +
                             "..." +
                             "OX."],
@@ -126,15 +125,24 @@ IDENTITY = [0.0, 0.0, 0.0,
             0.0, 1.0, 0.0,
             0.0, 0.0, 0.0]
 # TODO: The default rotation of these is upside down from that of the string patterns!
-ID_NW    = [0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0,
-            0.0, 0.0, 1.0]
-NOT_ID_NW    = [0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0,
-            0.0, 0.0, -1.0]
-ID_S     = [0.0, 1.0, 0.0,
-            0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0]
+ID_NE     = [0.0, 0.0, 0.0,
+             0.0, 0.0, 0.0,
+             0.0, 0.0, 1.0]
+NOT_ID_NE = [0.0, 0.0, 0.0,
+             0.0, 0.0, 0.0,
+             0.0, 0.0, -1.0]
+ID_S      = [0.0, 1.0, 0.0,
+             0.0, 0.0, 0.0,
+             0.0, 0.0, 0.0]
+NOT_ID_S  = [0.0, -1.0, 0.0,
+             0.0, 0.0, 0.0,
+             0.0, 0.0, 0.0]
+ID_E      = [0.0, 0.0, 0.0,
+             0.0, 0.0, 1.0,
+             0.0, 0.0, 0.0]
+NOT_ID_E  = [0.0, 0.0, 0.0,
+             0.0, 0.0, -1.0,
+             0.0, 0.0, 0.0]
 SUM = [1.0, 1.0, 1.0,
        1.0, 1.0, 1.0,
        1.0, 1.0, 1.0]
@@ -150,15 +158,14 @@ BOARD_FILTERS = {
         + ZERO*(HISTORY_PLANES-1)
         + IDENTITY                     # White/Black to move
         + ZERO),                       # White/Black to move
-    # TODO: generalize escaper/chaser
-    "escaper_stones" : ([]
+    "my_stones" : ([]
         + IDENTITY*1                   # Most recent opponent?
         + ZERO*(HISTORY_PLANES-1)
         + ZERO*1                       # Most recent me?
         + ZERO*(HISTORY_PLANES-1)
         + ZERO                         # White/Black to move
         + ZERO),                       # White/Black to move
-    "chaser_stones" : ([]
+    "opp_stones" : ([]
         + ZERO*1                       # Most recent opponent?
         + ZERO*(HISTORY_PLANES-1)
         + IDENTITY*1                   # Most recent me?
@@ -190,8 +197,8 @@ BOARD_FILTERS = {
 
 BOARD_FILTER = ([]
     + BOARD_FILTERS["tomove"]
-    + BOARD_FILTERS["escaper_stones"]
-    + BOARD_FILTERS["chaser_stones"]
+    + BOARD_FILTERS["my_stones"]
+    + BOARD_FILTERS["opp_stones"]
     + BOARD_FILTERS["empty"]
     + BOARD_FILTERS["not_edge"]
     + BOARD_FILTERS["init_to_zero"]*(N_RESIDUAL_FILTERS-N_BOARD_FILTERS)
@@ -208,8 +215,8 @@ def str2filter(s):
         raise
     f = []
     f += ZERO # to move
-    f += list(map(lambda w : float(w=="?" or w=="O" or w=="o"), [w for w in s[0:9]]))  # escaper_stones
-    f += list(map(lambda w : float(w=="?" or w=="X" or w=="x"), [w for w in s[0:9]]))  # chaser_stones
+    f += list(map(lambda w : float(w=="?" or w=="O" or w=="o"), [w for w in s[0:9]]))  # my_stones
+    f += list(map(lambda w : float(w=="?" or w=="X" or w=="x"), [w for w in s[0:9]]))  # opp_stones
     f += list(map(lambda w : float(w=="?" or w=="." or w=="x" or w=="o"), [w for w in s[0:9]]))  # empty
     if "+" in s:
         f += list(map(lambda w : -1.0*float(w=="?" or w=="+"), [w for w in s[0:9]]))  # not_edge
@@ -290,62 +297,63 @@ def addDynamicLayer(RESIDUAL_FILTERS):
     # LCBBBCMMMCCCC
     # LBBBBMMMMCCCC
     #
-    # x_found = x || continue & ^x_found
-    # o_found = o || continue & ^o_found
+    # x_found = x || ((continue || continue2) & nw(x_found)
+    # o_found = o || ((continue || continue2) & nw(o_found)
+    ladder_escape_fail = ZERO*N_RESIDUAL_FILTERS
+    ladder_atari_fail = ZERO*N_RESIDUAL_FILTERS
     ladder_x_found = sum_filters([
-        forward_filter(FILTERS.index("ladder_x_found")),
-        forward_filter(FILTERS.index("ladder_x_found")),
+        forward_filter(FILTERS.index("ladder_x")),
+        forward_filter(FILTERS.index("ladder_x")),
         forward_filter(FILTERS.index("ladder_continue")),
-        forward_filter(FILTERS.index("ladder_x_found"), ID_NW),
-        #forward_filter(FILTERS.index("ladder_x_found_m1"), NOT_ID_NW),
-        #forward_filter(FILTERS.index("ladder_x_found_m1"), NOT_IDENTITY), # Normalize previous layer
-        forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # Alternative way to do bias
+        forward_filter(FILTERS.index("ladder_continue2")),
+        forward_filter(FILTERS.index("ladder_x_found"), ID_NE),
+        forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # bias
     ladder_o_found = sum_filters([
-        forward_filter(FILTERS.index("ladder_x_found")),
-        forward_filter(FILTERS.index("ladder_x_found")),
+        forward_filter(FILTERS.index("ladder_o")),
+        forward_filter(FILTERS.index("ladder_o")),
         forward_filter(FILTERS.index("ladder_continue")),
-        forward_filter(FILTERS.index("ladder_o_found"), ID_NW),
-        #forward_filter(FILTERS.index("ladder_o_found_m1"), NOT_ID_NW),
-        #forward_filter(FILTERS.index("ladder_o_found_m1"), NOT_IDENTITY), # Normalize previous layer
-        forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # Alternative way to do bias
+        forward_filter(FILTERS.index("ladder_continue2")),
+        forward_filter(FILTERS.index("ladder_o_found"), ID_NE),
+        forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # bias
     ladder_x_found_m1 = sum_filters([
         ladder_x_found,
-        forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # Alternative way to do bias
+        forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # bias
     ladder_o_found_m1 = sum_filters([
         ladder_o_found,
-        forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # Alternative way to do bias
+        forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # bias
     RESIDUAL_FILTERS.append([]
         + forward_filter(range(0,N_STATIC_FILTERS))
         + ladder_x_found
         + ladder_o_found
         + forward_filter(FILTERS.index("ladder_x_found")) # prev_ladder_x_found
-        + forward_filter(FILTERS.index("ladder_o_found"))   # prev_ladder_o_found
+        + forward_filter(FILTERS.index("ladder_o_found")) # prev_ladder_o_found
         + ladder_x_found_m1
         + ladder_o_found_m1
         + forward_filter(FILTERS.index("ladder_escape"), ID_S) # ladder_escape_move
         + forward_filter(FILTERS.index("ladder_atari"), ID_S)  # ladder_atari_move
-        + forward_filter(FILTERS.index("ladder_escape"), ID_S) # ladder_escape_fail  TODO
-        + forward_filter(FILTERS.index("ladder_atari"), ID_S) # ladder_atari_fail  TODO
+        + ladder_escape_fail
+        + ladder_atari_fail
         + ZERO*N_RESIDUAL_FILTERS*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS-N_DYNAMIC_RESIDUAL_FILTERS)
     )
+    # Normalize
     RESIDUAL_FILTERS.append([]
         + ZERO*N_RESIDUAL_FILTERS*N_STATIC_FILTERS
         + sum_filters([
             forward_filter(FILTERS.index("ladder_x_found")),
-            forward_filter(FILTERS.index("ladder_x_found_m1"), NOT_IDENTITY),
-            forward_filter(FILTERS.index("prev_ladder_x_found"), NOT_IDENTITY)])
+            forward_filter(FILTERS.index("ladder_x_found_m1"), NOT_IDENTITY), # normalize
+            forward_filter(FILTERS.index("prev_ladder_x_found"), NOT_IDENTITY)]) # cancel skip connection
         + sum_filters([
             forward_filter(FILTERS.index("ladder_o_found")),
-            forward_filter(FILTERS.index("ladder_o_found_m1"), NOT_IDENTITY),
-            forward_filter(FILTERS.index("prev_ladder_o_found"), NOT_IDENTITY)])
+            forward_filter(FILTERS.index("ladder_o_found_m1"), NOT_IDENTITY), # normalize
+            forward_filter(FILTERS.index("prev_ladder_o_found"), NOT_IDENTITY)]) # cancel skip connection
         + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_x_found
         + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_o_found
         + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_x_found_m1
         + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_o_found_m1
         + forward_filter(FILTERS.index("ladder_escape"), ID_S) # ladder_escape_move
         + forward_filter(FILTERS.index("ladder_atari"), ID_S)  # ladder_atari_move
-        + forward_filter(FILTERS.index("ladder_escape"), ID_S) # ladder_escape_move  TODO
-        + forward_filter(FILTERS.index("ladder_atari"), ID_S)  # ladder_atari_move  TODO
+        + ladder_escape_fail
+        + ladder_atari_fail
         + ZERO*N_RESIDUAL_FILTERS*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS-N_DYNAMIC_RESIDUAL_FILTERS)
     )
 
@@ -384,7 +392,7 @@ def buildResidualFilters():
         + forward_filter(range(0,N_RESIDUAL_FILTERS), NOT_IDENTITY)
     )
 
-    for _ in range(DYNAMIC_LAYERS):
+    for i in range(DYNAMIC_LAYERS):
         addDynamicLayer(RESIDUAL_FILTERS)
 
     # Use this layer to normalize outputs to 1 or 0
@@ -392,7 +400,28 @@ def buildResidualFilters():
        + forward_filter(range(0,N_RESIDUAL_FILTERS))
     )
     RESIDUAL_FILTERS.append([]
-       + forward_filter(range(0,N_RESIDUAL_FILTERS), NOT_IDENTITY)
+        + forward_filter(range(0,N_RESIDUAL_FILTERS), NOT_IDENTITY)
+    )
+
+    # Add some last minute things
+    RESIDUAL_FILTERS.append([]
+       + forward_filter(range(0,N_RESIDUAL_FILTERS))
+    )
+    ladder_escape_fail = sum_filters([
+        forward_filter(FILTERS.index("ladder_escape"), ID_S),
+        forward_filter(FILTERS.index("ladder_x_found"), ID_E),
+        #forward_filter(FILTERS.index("not_edge"), ZERO)])  # bias
+        forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # bias
+    ladder_atari_fail = sum_filters([
+        forward_filter(FILTERS.index("ladder_atari"), ID_S),
+        forward_filter(FILTERS.index("ladder_x_found"), ID_NE),
+        #forward_filter(FILTERS.index("not_edge"), ZERO)])  # bias
+        forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # bias
+    RESIDUAL_FILTERS.append([]
+        + forward_filter(range(0,FILTERS.index("ladder_escape_fail")), ZERO)
+        + ladder_escape_fail
+        + ladder_atari_fail
+        + forward_filter(range(FILTERS.index("ladder_atari_fail")+1,N_RESIDUAL_FILTERS), ZERO)
     )
     return RESIDUAL_FILTERS
 
@@ -478,6 +507,19 @@ def main():
     print(to_string([0.0]*N_RESIDUAL_FILTERS)) # batchnorm_means
     print(to_string([1.0]*N_RESIDUAL_FILTERS)) # batchnorm_variances
 
+    # Last minute layer
+    r_layer += 1
+    print(to_string(RESIDUAL_FILTERS[r_layer])) # conv_weights
+    print(to_string([0.0]*N_RESIDUAL_FILTERS)) # conv_biases
+    print(to_string([0.0]*N_RESIDUAL_FILTERS)) # batchnorm_means
+    print(to_string([1.0]*N_RESIDUAL_FILTERS)) # batchnorm_variances
+    r_layer += 1
+    print(to_string(RESIDUAL_FILTERS[r_layer])) # conv_weights
+    print(to_string([0.0]*N_RESIDUAL_FILTERS)) # conv_biases
+    print(to_string([0.0]*N_RESIDUAL_FILTERS)) # batchnorm_means
+    print(to_string([1.0]*N_RESIDUAL_FILTERS)) # batchnorm_variances
+
+    assert(r_layer+1==len(RESIDUAL_FILTERS))
 
     # Policy
     print(to_string(

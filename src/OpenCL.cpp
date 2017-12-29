@@ -530,6 +530,12 @@ void OpenCL_Network::forward(const std::vector<net_t>& input,
                       tmpBuffer,
                       &residualBuffer,
                       bn2_weights);
+
+            //queue.enqueueReadBuffer(tmpBuffer, CL_FALSE, 0, finalSize, output.data());
+            //queue.finish();
+            //myprintf("RL final output:\n");
+            //Network::show_planes(output, 19, 19, layer.outputs);
+
             std::swap(inBuffer, tmpBuffer);
         } else  {
             auto conv_weights = begin(layer.weights);
