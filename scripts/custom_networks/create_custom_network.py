@@ -22,7 +22,7 @@ import itertools
 import operator
 
 # This controls how far the ladder reader can see
-DYNAMIC_LAYERS = 10
+DYNAMIC_LAYERS = 5
 
 INPUT_PLANES = 18
 HISTORY_PLANES = 8
@@ -95,9 +95,17 @@ PATTERN_DICT = {
                            "OOX" +
                            "OX."],
 
+    "ladder_escape2" : [8, ".X." +
+                           "XO." +
+                           "OOX"],
+
     "ladder_atari"   : [8, "..." +
                            "OX." +
                            "XXO"],
+
+    "ladder_atari2"  : [8, "O.." +
+                           "XX." +
+                           "XO."],
 
     # For ladder_o and ladder_x, the ! in the lower left
     # are a trick to avoid matching when next to the ladder_atari
@@ -366,20 +374,12 @@ def addDynamicLayer(RESIDUAL_FILTERS):
         + ladder_e_found_m1
         + ladder_x_found_m1
         + ladder_o_found_m1
-        + sum_filters([ # black_ladder_escape_move
-            forward_filter(FILTERS.index("ladder_escape"), ID_S),
-            forward_filter(FILTERS.index("white_tomove"), NOT_IDENTITY)])
-        + sum_filters([ # black_ladder_atari_move
-            forward_filter(FILTERS.index("ladder_atari"), ID_S),
-            forward_filter(FILTERS.index("white_tomove"), NOT_IDENTITY)])
+        + ZERO*N_RESIDUAL_FILTERS # black_ladder_escape_move
+        + ZERO*N_RESIDUAL_FILTERS # black_ladder_atari_move
         + ZERO*N_RESIDUAL_FILTERS # black_ladder_escape_fail
         + ZERO*N_RESIDUAL_FILTERS # black_ladder_atari_fail
-        + sum_filters([ # white_ladder_escape_move
-            forward_filter(FILTERS.index("ladder_escape"), ID_S),
-            forward_filter(FILTERS.index("black_tomove"), NOT_IDENTITY)])
-        + sum_filters([ # white_ladder_atari_move
-            forward_filter(FILTERS.index("ladder_atari"), ID_S),
-            forward_filter(FILTERS.index("black_tomove"), NOT_IDENTITY)])
+        + ZERO*N_RESIDUAL_FILTERS # white_ladder_escape_move
+        + ZERO*N_RESIDUAL_FILTERS # white_ladder_atari_move
         + ZERO*N_RESIDUAL_FILTERS # white_ladder_escape_fail
         + ZERO*N_RESIDUAL_FILTERS # white_ladder_atari_fail
         + ZERO*N_RESIDUAL_FILTERS*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS-N_DYNAMIC_RESIDUAL_FILTERS)
@@ -399,25 +399,18 @@ def addDynamicLayer(RESIDUAL_FILTERS):
             forward_filter(FILTERS.index("ladder_o_found")),
             forward_filter(FILTERS.index("ladder_o_found_m1"), NOT_IDENTITY), # normalize
             forward_filter(FILTERS.index("prev_ladder_o_found"), NOT_IDENTITY)]) # cancel skip connection
-        + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_e_found
-        + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_x_found
-        + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_o_found
-        + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_x_found_m1
-        + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_o_found_m1
-        + sum_filters([ # black_ladder_escape_move  TODO: Normalize these, they are growing
-            forward_filter(FILTERS.index("ladder_escape"), ID_S),
-            forward_filter(FILTERS.index("white_tomove"), NOT_IDENTITY)])
-        + sum_filters([ # black_ladder_atari_move
-            forward_filter(FILTERS.index("ladder_atari"), ID_S),
-            forward_filter(FILTERS.index("white_tomove"), NOT_IDENTITY)])
+        + ZERO*N_RESIDUAL_FILTERS # prev_ladder_e_found
+        + ZERO*N_RESIDUAL_FILTERS # prev_ladder_x_found
+        + ZERO*N_RESIDUAL_FILTERS # prev_ladder_o_found
+        + ZERO*N_RESIDUAL_FILTERS # prev_ladder_e_found_m1
+        + ZERO*N_RESIDUAL_FILTERS # prev_ladder_x_found_m1
+        + ZERO*N_RESIDUAL_FILTERS # prev_ladder_o_found_m1
+        + ZERO*N_RESIDUAL_FILTERS # black_ladder_escape_move
+        + ZERO*N_RESIDUAL_FILTERS # black_ladder_atari_move
         + ZERO*N_RESIDUAL_FILTERS # black_ladder_escape_fail
         + ZERO*N_RESIDUAL_FILTERS # black_ladder_atari_fail
-        + sum_filters([ # white_ladder_escape_move
-            forward_filter(FILTERS.index("ladder_escape"), ID_S),
-            forward_filter(FILTERS.index("black_tomove"), NOT_IDENTITY)])
-        + sum_filters([ # white_ladder_atari_move
-            forward_filter(FILTERS.index("ladder_atari"), ID_S),
-            forward_filter(FILTERS.index("black_tomove"), NOT_IDENTITY)])
+        + ZERO*N_RESIDUAL_FILTERS # white_ladder_escape_move
+        + ZERO*N_RESIDUAL_FILTERS # white_ladder_atari_move
         + ZERO*N_RESIDUAL_FILTERS # white_ladder_escape_fail
         + ZERO*N_RESIDUAL_FILTERS # white_ladder_atari_fail
         + ZERO*N_RESIDUAL_FILTERS*(N_RESIDUAL_FILTERS-N_STATIC_FILTERS-N_DYNAMIC_RESIDUAL_FILTERS)
@@ -481,16 +474,20 @@ def buildResidualFilters():
         forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # bias
     RESIDUAL_FILTERS.append([]
         + forward_filter(range(0,FILTERS.index("black_ladder_escape_move")), ZERO)
-        + forward_filter(FILTERS.index("black_ladder_escape_move"), ZERO)
-        + forward_filter(FILTERS.index("black_ladder_atari_move"), ZERO)
-        + sum_filters([ # black_ladder_escape_fail
-            ladder_escape_fail,
+        + sum_filters([ # black_ladder_escape_move
+            forward_filter(FILTERS.index("ladder_escape"), ID_S),
             forward_filter(FILTERS.index("white_tomove"), NOT_IDENTITY)])
-        + sum_filters([ # black_ladder_atari_fail
-            ladder_atari_fail,
+        + sum_filters([ # black_ladder_atari_move
+            forward_filter(FILTERS.index("ladder_atari"), ID_S),
             forward_filter(FILTERS.index("white_tomove"), NOT_IDENTITY)])
-        + forward_filter(FILTERS.index("white_ladder_escape_move"), ZERO)
-        + forward_filter(FILTERS.index("white_ladder_atari_move"), ZERO)
+        + ZERO*N_RESIDUAL_FILTERS # black_ladder_escape_fail
+        + ZERO*N_RESIDUAL_FILTERS # black_ladder_atari_fail
+        + sum_filters([ # white_ladder_escape_move
+            forward_filter(FILTERS.index("ladder_escape"), ID_S),
+            forward_filter(FILTERS.index("black_tomove"), NOT_IDENTITY)])
+        + sum_filters([ # white_ladder_atari_move
+            forward_filter(FILTERS.index("ladder_atari"), ID_S),
+            forward_filter(FILTERS.index("black_tomove"), NOT_IDENTITY)])
         + sum_filters([ # white_ladder_escape_fail
             ladder_escape_fail,
             forward_filter(FILTERS.index("black_tomove"), NOT_IDENTITY)])
