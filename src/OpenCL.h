@@ -72,6 +72,13 @@ public:
         m_layers[layer].channels = means.size();
         m_layers[layer].outputs = means.size();
         m_layers[layer].filter_size = spatial_size;
+
+        for (const auto& m : means) {
+            printf("aolsen means %f\n", m);
+        }
+        for (const auto& v : variances) {
+            printf("aolsen variances %f\n", v);
+        }
     }
 
     void push_convolve(unsigned int filter_size,
