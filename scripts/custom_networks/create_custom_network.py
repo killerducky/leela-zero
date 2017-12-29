@@ -21,17 +21,19 @@ import argparse
 import itertools
 import operator
 
+# This controls how far the ladder reader can see
+DYNAMIC_LAYERS = 10
+
 INPUT_PLANES = 18
 HISTORY_PLANES = 8
 N_RESIDUAL_FILTERS = 32
 N_BOARD_FILTERS  = 6
 N_STATIC_RESIDUAL_FILTERS = 7
-N_DYNAMIC_RESIDUAL_FILTERS = 14
+N_DYNAMIC_RESIDUAL_FILTERS = 17
 N_UNUSED_RESIDUAL_FILTERS = N_RESIDUAL_FILTERS - N_BOARD_FILTERS - N_STATIC_RESIDUAL_FILTERS - N_DYNAMIC_RESIDUAL_FILTERS
 assert(N_UNUSED_RESIDUAL_FILTERS >0)
 N_STATIC_FILTERS = N_BOARD_FILTERS + N_STATIC_RESIDUAL_FILTERS
 NORMALIZE_BIAS = 1.0
-DYNAMIC_LAYERS = 20
 
 FILTERS = [
     # Static Board filters
@@ -49,24 +51,27 @@ FILTERS = [
     "ladder_x",         # z=9  (X)
     "ladder_continue",  # z=10 (.)
     "ladder_continue2", # z=11
-    "ladder_edge",      # z=12 (+)
+    "ladder_e",         # z=12 (+)
 
     # Dynamic patterns
-    "ladder_x_found",      # z=13
-    "ladder_o_found",      # z=14
-    "prev_ladder_x_found", # z=15 -- used to subtract out skip layer
-    "prev_ladder_o_found", # z=16 -- used to subtract out skip layer
-    "ladder_x_found_m1",   # z=17 -- used for normalizing
-    "ladder_o_found_m1",   # z=18 -- used for normalizing
+    "ladder_e_found",      # z=13
+    "ladder_x_found",      # z=14
+    "ladder_o_found",      # z=15
+    "prev_ladder_e_found", # z=16 -- used to subtract out skip layer
+    "prev_ladder_x_found", # z=17 -- used to subtract out skip layer
+    "prev_ladder_o_found", # z=18 -- used to subtract out skip layer
+    "ladder_e_found_m1",   # z=19 -- used for normalizing
+    "ladder_x_found_m1",   # z=20 -- used for normalizing
+    "ladder_o_found_m1",   # z=21-- used for normalizing
     # The following act more like static patterns, but are calculated later
-    "black_ladder_escape_move",  # z=19
-    "black_ladder_atari_move",   # z=20
-    "black_ladder_escape_fail",  # z=21
-    "black_ladder_atari_fail",   # z=22
-    "white_ladder_escape_move",  # z=23
-    "white_ladder_atari_move",   # z=24
-    "white_ladder_escape_fail",  # z=25
-    "white_ladder_atari_fail",   # z=26
+    "black_ladder_escape_move",  # z=22
+    "black_ladder_atari_move",   # z=23
+    "black_ladder_escape_fail",  # z=24
+    "black_ladder_atari_fail",   # z=25
+    "white_ladder_escape_move",  # z=26
+    "white_ladder_atari_move",   # z=27
+    "white_ladder_escape_fail",  # z=28
+    "white_ladder_atari_fail",   # z=29
 ]
 
 assert (len(FILTERS) == N_BOARD_FILTERS + N_STATIC_RESIDUAL_FILTERS + N_DYNAMIC_RESIDUAL_FILTERS)
@@ -103,15 +108,12 @@ PATTERN_DICT = {
                            "!OO" +
                            "!!O"],
 
-    "ladder_x"       : [-9, "XXX" +
-                            "!XX" +
-                            "!!X" +
-                            "+++" +
-                            "+++" +
-                            "+++"],
+    "ladder_x"       : [0, "XXX" +
+                           "!XX" +
+                           "!!X"],
 
     # -9 bias because in the middle hit 9 not_edge, for -9 total
-    "ladder_edge"     : [-9, "+++" +
+    "ladder_e"        : [-9, "+++" +
                              "+++" +
                              "+++"],
 
@@ -312,15 +314,24 @@ def normalize_test():
     sys.exit()
 
 # Add the layers that propogate the dynamic features
-# x_found and made
 def addDynamicLayer(RESIDUAL_FILTERS):
-    # LCCCBCCCMCCCC
-    # LCCBBCCMMCCCC
-    # LCBBBCMMMCCCC
-    # LBBBBMMMMCCCC
+    # LCCCOCCCXCCCE
+    # LCCOOCCXXCCEE
+    # LCOOOCXXXCEEE
+    # LOOOOXXXXEEEE
+    # LOOOOXXXXEEEE
+    # LOOOOXXXXEEEE
     #
+    # e_found = e || ((continue || continue2) & nw(e_found)
     # x_found = x || ((continue || continue2) & nw(x_found)
     # o_found = o || ((continue || continue2) & nw(o_found)
+    ladder_e_found = sum_filters([
+        forward_filter(FILTERS.index("ladder_e")),
+        forward_filter(FILTERS.index("ladder_e")),
+        forward_filter(FILTERS.index("ladder_continue")),
+        forward_filter(FILTERS.index("ladder_continue2")),
+        forward_filter(FILTERS.index("ladder_e_found"), ID_NE),
+        forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # bias
     ladder_x_found = sum_filters([
         forward_filter(FILTERS.index("ladder_x")),
         forward_filter(FILTERS.index("ladder_x")),
@@ -335,6 +346,9 @@ def addDynamicLayer(RESIDUAL_FILTERS):
         forward_filter(FILTERS.index("ladder_continue2")),
         forward_filter(FILTERS.index("ladder_o_found"), ID_NE),
         forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # bias
+    ladder_e_found_m1 = sum_filters([
+        ladder_e_found,
+        forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # bias
     ladder_x_found_m1 = sum_filters([
         ladder_x_found,
         forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # bias
@@ -343,10 +357,13 @@ def addDynamicLayer(RESIDUAL_FILTERS):
         forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # bias
     RESIDUAL_FILTERS.append([]
         + forward_filter(range(0,N_STATIC_FILTERS))
+        + ladder_e_found
         + ladder_x_found
         + ladder_o_found
+        + forward_filter(FILTERS.index("ladder_e_found")) # prev_ladder_e_found
         + forward_filter(FILTERS.index("ladder_x_found")) # prev_ladder_x_found
         + forward_filter(FILTERS.index("ladder_o_found")) # prev_ladder_o_found
+        + ladder_e_found_m1
         + ladder_x_found_m1
         + ladder_o_found_m1
         + sum_filters([ # black_ladder_escape_move
@@ -371,6 +388,10 @@ def addDynamicLayer(RESIDUAL_FILTERS):
     RESIDUAL_FILTERS.append([]
         + ZERO*N_RESIDUAL_FILTERS*N_STATIC_FILTERS
         + sum_filters([
+            forward_filter(FILTERS.index("ladder_e_found")),
+            forward_filter(FILTERS.index("ladder_e_found_m1"), NOT_IDENTITY), # normalize
+            forward_filter(FILTERS.index("prev_ladder_e_found"), NOT_IDENTITY)]) # cancel skip connection
+        + sum_filters([
             forward_filter(FILTERS.index("ladder_x_found")),
             forward_filter(FILTERS.index("ladder_x_found_m1"), NOT_IDENTITY), # normalize
             forward_filter(FILTERS.index("prev_ladder_x_found"), NOT_IDENTITY)]) # cancel skip connection
@@ -378,6 +399,7 @@ def addDynamicLayer(RESIDUAL_FILTERS):
             forward_filter(FILTERS.index("ladder_o_found")),
             forward_filter(FILTERS.index("ladder_o_found_m1"), NOT_IDENTITY), # normalize
             forward_filter(FILTERS.index("prev_ladder_o_found"), NOT_IDENTITY)]) # cancel skip connection
+        + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_e_found
         + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_x_found
         + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_o_found
         + ZERO*N_RESIDUAL_FILTERS  # prev_ladder_x_found_m1
@@ -450,6 +472,7 @@ def buildResidualFilters():
     )
     ladder_escape_fail = sum_filters([
         forward_filter(FILTERS.index("ladder_escape"), ID_S),
+        forward_filter(FILTERS.index("ladder_e_found"), ID_E),
         forward_filter(FILTERS.index("ladder_x_found"), ID_E),
         forward_filter(FILTERS.index("not_edge"), NOT_IDENTITY)])  # bias
     ladder_atari_fail = sum_filters([
