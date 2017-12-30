@@ -19,80 +19,80 @@ again to encourage the search to read the ladder.
 
 ## Take this board example:
 
-      a b c d e f g h j k l m n o p q r s t
-   19 . . . . . . . . . . . . . . . . . . . 19
-   18 . . . . . . . . . . . . . . . . . . . 18
-   17 . . . . . . . . . . . . . . . . . . . 17
-   16 . . . + . . . . . + . . . X . + . . . 16
-   15 . . . . . . . . . . . . . . . . . . . 15
-   14 . . . . . . . . . . . . . . . . . . . 14
-   13 . . . . . . . . . . . . . . . . . . . 13
-   12 . . . . . . . . . . . . . . . . . . . 12
-   11 . . . . . . . . . . . . . . . . . . . 11
-   10 . . . + . . . O . + . . . . . + . . . 10
-    9 . . . . . . . . . . . . . . . . . . .  9
-    8 . . . . . . . . . . . . . . . . . . .  8
-    7 . . . X . . . . . . . . . . . . . . .  7
-    6 . . X O O(X). . . . . . . . . . . . .  6
-    5 . . X O X . . . . . . . . . . . . . .  5
-    4 . . O X . . . . . + . . . . . + . . .  4
-    3 . . O . . . . . . . . . . . . . . . .  3
-    2 . . . . . . . . . . . . . . . . . . .  2
-    1 . . . . . . . . . . . . . . . . . . .  1
-      a b c d e f g h j k l m n o p q r s t
+       a b c d e f g h j k l m n o p q r s t
+    19 . . . . . . . . . . . . . . . . . . . 19
+    18 . . . . . . . . . . . . . . . . . . . 18
+    17 . . . . . . . . . . . . . . . . . . . 17
+    16 . . . + . . . . . + . . . X . + . . . 16
+    15 . . . . . . . . . . . . . . . . . . . 15
+    14 . . . . . . . . . . . . . . . . . . . 14
+    13 . . . . . . . . . . . . . . . . . . . 13
+    12 . . . . . . . . . . . . . . . . . . . 12
+    11 . . . . . . . . . . . . . . . . . . . 11
+    10 . . . + . . . O . + . . . . . + . . . 10
+     9 . . . . . . . . . . . . . . . . . . .  9
+     8 . . . . . . . . . . . . . . . . . . .  8
+     7 . . . X . . . . . . . . . . . . . . .  7
+     6 . . X O O(X). . . . . . . . . . . . .  6
+     5 . . X O X . . . . . . . . . . . . . .  5
+     4 . . O X . . . . . + . . . . . + . . .  4
+     3 . . O . . . . . . . . . . . . . . . .  3
+     2 . . . . . . . . . . . . . . . . . . .  2
+     1 . . . . . . . . . . . . . . . . . . .  1
+       a b c d e f g h j k l m n o p q r s t
 
 - O is always the player to move.
 - X is the opponent.
 
 ## Static features:
-      a b c d e f g h j k l m n o p q r s t
-   19 e e e e e e e e e e e e e e e e e e e 19
-   18 e                                   e 18
-   17 e                       x x x       e 17
-   16 e     +           +       X x +     e 16
-   15 e                           x       e 15
-   14 e                                   e 14
-   13 e                                   e 13
-   12 e                                   e 12
-   11 e           o o o                   e 11
-   10 e     +       O o +           +     e 10
-    9 e               o                   e  9
-    8 e                                   e  8
-    7 e     X L                           e  7
-    6 e   X O O X                         e  6
-    5 e   X O X                           e  5
-    4 e   O X           +           +     e  4
-    3 e   O                               e  3
-    2 e                                   e  2
-    1 e e e e e e e e e e e e e e e e e e e  1
-      a b c d e f g h j k l m n o p q r s t
+       a b c d e f g h j k l m n o p q r s t
+    19 e e e e e e e e e e e e e e e e e e e 19
+    18 e                                   e 18
+    17 e                       x x x       e 17
+    16 e     +           +       X x +     e 16
+    15 e                           x       e 15
+    14 e                                   e 14
+    13 e                                   e 13
+    12 e                                   e 12
+    11 e           o o o                   e 11
+    10 e     +       O o +           +     e 10
+     9 e               o                   e  9
+     8 e                                   e  8
+     7 e     X L                           e  7
+     6 e   X O O X                         e  6
+     5 e   X O X                           e  5
+     4 e   O X           +           +     e  4
+     3 e   O                               e  3
+     2 e                                   e  2
+     1 e e e e e e e e e e e e e e e e e e e  1
+       a b c d e f g h j k l m n o p q r s t
 
 - e = edge of the board
 - o = friendly stones of the side to move
 - L = ladder escape or ladder atari position
 
 ## Dynamic features after one step:
-      a b c d e f g h j k l m n o p q r s t
-   19 e e e e e e e e e e e e e e e e e e e 19
-   18 e e e e e e e e e e e e e e e e e e e 18
-   17 e                       x x x     e e 17
-   16 e     +           +   x x X x +   e e 16
-   15 e                       x x x     e e 15
-   14 e                         x       e e 14
-   13 e                                 e e 13
-   12 e                                 e e 12
-   11 e           o o o                 e e 11
-   10 e     +   o o O o +           +   e e 10
-    9 e           o o o                 e e  9
-    8 e             o                   e e  8
-    7 e     X L                         e e  7
-    6 e   X O O X                       e e  6
-    5 e x X O X                         e e  5
-    4 e x O X           +           +   e e  4
-    3 e o O                             e e  3
-    2 e o                               e e  2
-    1 e e e e e e e e e e e e e e e e e e e  1
-      a b c d e f g h j k l m n o p q r s t
+       a b c d e f g h j k l m n o p q r s t
+    19 e e e e e e e e e e e e e e e e e e e 19
+    18 e e e e e e e e e e e e e e e e e e e 18
+    17 e                       x x x     e e 17
+    16 e     +           +   x x X x +   e e 16
+    15 e                       x x x     e e 15
+    14 e                         x       e e 14
+    13 e                                 e e 13
+    12 e                                 e e 12
+    11 e           o o o                 e e 11
+    10 e     +   o o O o +           +   e e 10
+     9 e           o o o                 e e  9
+     8 e             o                   e e  8
+     7 e     X L                         e e  7
+     6 e   X O O X                       e e  6
+     5 e x X O X                         e e  5
+     4 e x O X           +           +   e e  4
+     3 e o O                             e e  3
+     2 e o                               e e  2
+     1 e e e e e e e e e e e e e e e e e e e  1
+       a b c d e f g h j k l m n o p q r s t
 
 e, o, and x features are propogated to the southeast
 one space diagonally every step. Intersections can have
@@ -101,27 +101,27 @@ But some features block others (o blocks x, and vice-versa).
 The most relevant feature is shown above for clarity.
 
 ## Dynamic features after three steps:
-      a b c d e f g h j k l m n o p q r s t
-   19 e e e e e e e e e e e e e e e e e e e 19
-   18 e e e e e e e e e e e e e e e e e e e 18
-   17 e e e e e e e e e e e e x x x e e e e 17
-   16 e e e e e e e e e e e x x X x e e e e 16
-   15 e e e e e e e e e e x x x x x e e e e 15
-   14 e                 x x x x x e e e e e 14
-   13 e                   x x x   e e e e e 13
-   12 e                     x     e e e e e 12
-   11 e           o o o           e e e e e 11
-   10 e     +   o o O o +         e e e e e 10
-    9 e       o o o o o           e e e e e  9
-    8 e     o o o o o             e e e e e  8
-    7 e     X L o o               e e e e e  7
-    6 e   X O O X                 e e e e e  6
-    5 e x X O X                   e e e e e  5
-    4 e x O X           +         e e e e e  4
-    3 e o O                       e e e e e  3
-    2 e o                         e e e e e  2
-    1 e e e e e e e e e e e e e e e e e e e  1
-      a b c d e f g h j k l m n o p q r s t
+       a b c d e f g h j k l m n o p q r s t
+    19 e e e e e e e e e e e e e e e e e e e 19
+    18 e e e e e e e e e e e e e e e e e e e 18
+    17 e e e e e e e e e e e e x x x e e e e 17
+    16 e e e e e e e e e e e x x X x e e e e 16
+    15 e e e e e e e e e e x x x x x e e e e 15
+    14 e                 x x x x x e e e e e 14
+    13 e                   x x x   e e e e e 13
+    12 e                     x     e e e e e 12
+    11 e           o o o           e e e e e 11
+    10 e     +   o o O o +         e e e e e 10
+     9 e       o o o o o           e e e e e  9
+     8 e     o o o o o             e e e e e  8
+     7 e     X L o o               e e e e e  7
+     6 e   X O O X                 e e e e e  6
+     5 e x X O X                   e e e e e  5
+     4 e x O X           +         e e e e e  4
+     3 e o O                       e e e e e  3
+     2 e o                         e e e e e  2
+     1 e e e e e e e e e e e e e e e e e e e  1
+       a b c d e f g h j k l m n o p q r s t
 
 In the final layers, another filter determines if a potential
 ladder escape is next to:
@@ -174,8 +174,7 @@ network sees by modifying `DYNAMIC_LAYERS=20`
 - I disabled rotations in the LZ code. Be careful not to merge this back into master/next.
 
 ## FAQ:
-### I heard it's theoretically possible a single fully connected layer to
-learn arbitraty functions, including ladders.
+### I heard it's theoretically possible a single fully connected layer to learn arbitraty functions, including ladders.
 
 Yes but you need a really big FC layer to do that. Also I believe it's easier
 to train deeper networks instead of wider ones
