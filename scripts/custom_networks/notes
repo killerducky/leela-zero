@@ -1,0 +1,87 @@
+ladder_bad_14.log
+10 . . . + . . . . O + . . . . . + . . . 10
+ 9 . . . . . . . . . . . . . . . . . . .  9
+ 8 . . . . . . . . . . . . . . . . . . .  8
+ 7 . . . X . . . . . . . . . . . . . . .  7
+ 6 . . X O O(X). . . . . . . . . . . . .  6
+ 5 . . X O X . . . . . . . . . . . . . .  5
+ 4 . . O X . . . . . + . . . . . + . . .  4
+ 3 . . O . . . . . . . . . . . . . . . .  3
+ 2 . . . . . . . . . . . . . . . . . . .  2
+ 1 . . . . . . . . . . . . . . . . . . .  1
+   a b c d e f g h j k l m n o p q r s t
+
+                                z  want   actual
+f7 - ladder_o                        0
+     ladder_o_found                  1
+e7 - black_ladder_escape_move        0
+     black_ladder_escape_fail        0
+     white_ladder_escape_move  26    1      0
+     white_ladder_escape_fail  28    0
+winrate:                                 0.499130
+
+
+
+ladder_bad_15.log
+flip X/O                                       original X/O
+10 . . . + . . . . X + . . . . . + . . . 10 10 . . . + . . . . O + . . . . . + . . . 10
+ 9 . . . . . . . . . . . . . . . . . . .  9  9 . . . . . . . . . . . . . . . . . . .  9
+ 8 . . . . . . . . . . . . . . . . . . .  8  8 . . . . . . . . . . . . . . . . . . .  8
+ 7 . . . O(X). . . . . . . . . . . . . .  7  7 . . . X(O). . . . . . . . . . . . . .  7
+ 6 . . O X X O . . . . . . . . . . . . .  6  6 . . X O O X . . . . . . . . . . . . .  6
+ 5 . . O X O . . . . . . . . . . . . . .  5  5 . . X O X . . . . . . . . . . . . . .  5
+ 4 . . X O . . . . . + . . . . . + . . .  4  4 . . O X . . . . . + . . . . . + . . .  4
+ 3 . . X . . . . . . . . . . . . . . . .  3  3 . . O . . . . . . . . . . . . . . . .  3
+ 2 . . . . . . . . . . . . . . . . . . .  2  2 . . . . . . . . . . . . . . . . . . .  2
+ 1 . . . . . . . . . . . . . . . . . . .  1  1 . . . . . . . . . . . . . . . . . . .  1
+   a b c d e f g h j k l m n o p q r s t       a b c d e f g h j k l m n o p q r s t
+
+                          z  want   actual
+e8 - ladder_atari         6    1
+f9 - ladder_x             9    0
+     ladder_x_found      13    1
+e8 - ladder_atari_move   18    1
+     ladder_atari_fail   20    1
+
+
+ladder_good_14.log
+10 . . . + . . . . X + . . . . . + . . . 10
+ 9 . . . . . . . . . . . . . . . . . . .  9
+ 8 . . . . . . . . . . . . . . . . . . .  8
+ 7 . . . X . . . . . . . . . . . . . . .  7
+ 6 . . X O O(X). . . . . . . . . . . . .  6
+ 5 . . X O X . . . . . . . . . . . . . .  5
+ 4 . . O X . . . . . + . . . . . + . . .  4
+ 3 . . O . . . . . . . . . . . . . . . .  3
+ 2 . . . . . . . . . . . . . . . . . . .  2
+ 1 . . . . . . . . . . . . . . . . . . .  1
+   a b c d e f g h j k l m n o p q r s t
+
+                                z  want   actual
+f7 - ladder_x                   9    0
+     ladder_x_found            13    0
+e7 - white_ladder_escape_move  23    1
+     white_ladder_escape_fail  25    1
+
+ladder_good_14.log
+                          z  want   actual
+     ladder_atari_fail   20    1
+
+
+ 9 . . . . . . . . . . . . . . . . . . .  9
+ 8 . . . .(X). . . . . . . . . . . . . .  8
+ 7 . . . X O . . . . . . . . . . . . . .  7
+ 6 . . X O O X . . . . . . . . . . . . .  6
+ 5 . . X O X . . . . . . . . . . . . . .  5
+ 4 . . O X . . . . . + . . . . . + . . .  4
+ 3 . . O . . . . . . . . . . . . . . . .  3
+ 2 . . . . . . . . . . . . . . . . . . .  2
+ 1 . . . . . . . . . . . . . . . . . . .  1
+   a b c d e f g h j k l m n o p q r s t
+
+Hash: 53AE60836D40D22C Ko-Hash: D0C71D51E03EEBA5
+
+   - white_ladder_escape_move  29    1
+     white_ladder_escape_fail  31    1   0
+
+
