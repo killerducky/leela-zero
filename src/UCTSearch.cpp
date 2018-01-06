@@ -353,6 +353,10 @@ int UCTSearch::think(int color, passflag_t passflag) {
         m_root.dirichlet_noise(0.25f, 0.03f);
     }
 
+    // Sync first, this is similar to reconstructing the tree from the
+    // previous search but only at the root node.
+    ttable_sync_all_children(m_rootstate, &m_root);
+
     myprintf("NN eval=%f\n",
              (color == FastBoard::BLACK ? root_eval : 1.0f - root_eval));
 
@@ -398,10 +402,6 @@ int UCTSearch::think(int color, passflag_t passflag) {
     // display search info
     myprintf("\n");
 
-    // Conservative way to pick up playouts from the TTable
-    // that we haven't already. This method does not change
-    // the way the search works.
-    ttable_sync_all_children(m_rootstate, &m_root);
     dump_stats(m_rootstate, m_root);
     Training::record(m_rootstate, m_root);
 
