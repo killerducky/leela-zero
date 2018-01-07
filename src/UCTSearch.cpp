@@ -51,7 +51,8 @@ void UCTSearch::ttable_sync_all_children(GameState & currstate, UCTNode* const n
         auto move = child->get_move();
         currstate.play_move(move);
         const auto hash = currstate.board.get_hash();
-        TTable::get_TT()->sync(hash, komi, child.get());
+        ttable_sync_all_children(currstate, child.get()); // recursively recover the whole tree
+        TTable::get_TT().sync(hash, komi, child.get());
         currstate.undo_move();
     }
 }
