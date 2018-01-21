@@ -58,7 +58,7 @@ void UCTSearch::set_gamestate(const GameState & g) {
     m_nodes = m_root->count_nodes();
 }
 
-SearchResult UCTSearch::play_simulation(GameState & currstate, UCTNode* const node) {
+SearchResult UCTSearch::play_simulation(GameState & currstate, UCTNode* const node, float& parent_avg_child_weight) {
     const auto color = currstate.get_to_move();
     const auto hash = currstate.board.get_hash();
     const auto komi = currstate.get_komi();
@@ -74,7 +74,7 @@ SearchResult UCTSearch::play_simulation(GameState & currstate, UCTNode* const no
             result = SearchResult::from_score(score);
         } else if (m_nodes < MAX_TREE_SIZE) {
             float eval;
-            auto success = node->create_children(m_nodes, currstate, eval);
+            auto success = node->create_children(m_nodes, currstate, eval, parent_avg_child_weight);
             if (success) {
                 result = SearchResult::from_eval(eval);
             }
@@ -94,13 +94,13 @@ SearchResult UCTSearch::play_simulation(GameState & currstate, UCTNode* const no
                 currstate.play_move(move);
 
                 if (!currstate.superko()) {
-                    result = play_simulation(currstate, next);
+                    result = play_simulation(currstate, next, node->get_avg_child_init_eval());
                 } else {
                     next->invalidate();
                 }
             } else {
                 currstate.play_pass();
-                result = play_simulation(currstate, next);
+                result = play_simulation(currstate, next, node->get_avg_child_init_eval());
             }
         }
     }
@@ -152,7 +152,7 @@ void UCTSearch::dump_stats(GameState & state, UCTNode & parent) {
         myprintf("%4s -> %7d (V: %5.2f%%) (N: %5.2f%%) (first_V: %5.2f%%) PV: %s\n",
             tmp.c_str(),
             node->get_visits(),
-            node->get_eval(color)*100.0f,
+            node->get_eval(color, parent.get_avg_child_init_eval())*100.0f,
             node->get_score() * 100.0f,
             eval * 100.0f,
             pvstring.c_str()
@@ -376,7 +376,9 @@ bool UCTSearch::playout_or_visit_limit_reached() const {
 void UCTWorker::operator()() {
     do {
         auto currstate = std::make_unique<GameState>(m_rootstate);
-        auto result = m_search->play_simulation(*currstate, m_root);
+        auto tmp = -1.0f; // root is guaranteed to be expanded so this is not needed
+        // TODO: Make another version of play_simulation that asserts this?
+        auto result = m_search->play_simulation(*currstate, m_root, tmp);
         if (result.valid()) {
             m_search->increment_playouts();
         }
@@ -408,7 +410,8 @@ int UCTSearch::think(int color, const GameState& g, passflag_t passflag) {
     // play something legal and decent even in time trouble)
     float root_eval;
     if (!m_root->has_children()) {
-        m_root->create_children(m_nodes, m_rootstate, root_eval);
+        auto tmp = -1.0f; // no parent of root
+        m_root->create_children(m_nodes, m_rootstate, root_eval, tmp);
     } else {
         root_eval = m_root->get_eval(color);
     }
@@ -432,7 +435,8 @@ int UCTSearch::think(int color, const GameState& g, passflag_t passflag) {
     do {
         auto currstate = std::make_unique<GameState>(m_rootstate);
 
-        auto result = play_simulation(*currstate, m_root.get());
+        auto tmp = -1.0f; // root is guaranteed to be expanded so this is not needed
+        auto result = play_simulation(*currstate, m_root.get(), tmp);
         if (result.valid()) {
             increment_playouts();
         }
@@ -491,7 +495,9 @@ void UCTSearch::ponder(const GameState& g) {
     }
     do {
         auto currstate = std::make_unique<GameState>(m_rootstate);
-        auto result = play_simulation(*currstate, m_root.get());
+
+        auto tmp = -1.0f; // root is guaranteed to be expanded so this is not needed
+        auto result = play_simulation(*currstate, m_root.get(), tmp);
         if (result.valid()) {
             increment_playouts();
         }

@@ -37,6 +37,8 @@ public:
     // search tree.
     static constexpr auto VIRTUAL_LOSS_COUNT = 3;
 
+    static constexpr auto MOVING_AVG_WEIGHT = 0.1;
+
     using node_ptr_t = std::unique_ptr<UCTNode>;
 
     explicit UCTNode(int vertex, float score, float init_eval);
@@ -45,7 +47,8 @@ public:
     bool first_visit() const;
     bool has_children() const;
     bool create_children(std::atomic<int>& nodecount,
-                         GameState& state, float& eval);
+                         GameState& state, float& eval,
+                         float& parent_avg_child_weight);
     float eval_state(GameState& state);
     void kill_superkos(const KoState& state);
     void invalidate();
@@ -54,8 +57,9 @@ public:
     int get_visits() const;
     float get_score() const;
     void set_score(float score);
-    float get_eval(int tomove) const;
+    float get_eval(int tomove, float parent_avg_child_init_eval = -1.0f) const;
     double get_blackevals() const;
+    float& get_avg_child_init_eval();
     void set_visits(int visits);
     void set_blackevals(double blacevals);
     void accumulate_eval(float eval);
@@ -93,6 +97,7 @@ private:
     // UCT eval
     float m_score;
     float m_init_eval;
+    float m_avg_child_init_eval;
     std::atomic<double> m_blackevals{0};
     // node alive (not superko)
     std::atomic<bool> m_valid{true};

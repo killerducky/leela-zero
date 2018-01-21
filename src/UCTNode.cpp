@@ -58,7 +58,8 @@ SMP::Mutex& UCTNode::get_mutex() {
 
 bool UCTNode::create_children(std::atomic<int> & nodecount,
                               GameState & state,
-                              float & eval) {
+                              float & eval,
+                              float & parent_avg_child_init_eval) {
     // check whether somebody beat us to it (atomic)
     if (has_children()) {
         return false;
@@ -92,6 +93,10 @@ bool UCTNode::create_children(std::atomic<int> & nodecount,
         net_eval = 1.0f - net_eval;
     }
     eval = net_eval;
+    m_avg_child_init_eval = eval;
+    parent_avg_child_init_eval =
+        parent_avg_child_init_eval*(1.0-MOVING_AVG_WEIGHT)
+        + eval*MOVING_AVG_WEIGHT;
 
     std::vector<Network::scored_node> nodelist;
 
@@ -272,7 +277,7 @@ int UCTNode::get_visits() const {
     return m_visits;
 }
 
-float UCTNode::get_eval(int tomove) const {
+float UCTNode::get_eval(int tomove, float parent_avg_child_init_eval) const {
     // Due to the use of atomic updates and virtual losses, it is
     // possible for the visit count to change underneath us. Make sure
     // to return a consistent result to the caller by caching the values.
@@ -291,7 +296,12 @@ float UCTNode::get_eval(int tomove) const {
     } else {
         // If a node has not been visited yet,
         // the eval is that of the parent.
-        auto eval = m_init_eval;
+        //auto eval = m_init_eval;
+
+        // If a node has not been visited yet,
+        // the eval is a moving average of the
+        // evals seen by this node's siblings.
+        auto eval = parent_avg_child_init_eval;
         if (tomove == FastBoard::WHITE) {
             eval = 1.0f - eval;
         }
@@ -306,6 +316,10 @@ double UCTNode::get_blackevals() const {
 
 void UCTNode::set_blackevals(double blackevals) {
     m_blackevals = blackevals;
+}
+
+float& UCTNode::get_avg_child_init_eval() {
+    return m_avg_child_init_eval;
 }
 
 void UCTNode::accumulate_eval(float eval) {
@@ -334,7 +348,7 @@ UCTNode* UCTNode::uct_select_child(int color) {
         }
 
         // get_eval() will automatically set first-play-urgency
-        auto winrate = child->get_eval(color);
+        auto winrate = child->get_eval(color, m_avg_child_init_eval);
         auto psa = child->get_score();
         auto denom = 1.0f + child->get_visits();
         auto puct = cfg_puct * psa * (numerator / denom);

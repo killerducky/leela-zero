@@ -83,7 +83,10 @@ public:
     bool is_running() const;
     bool playout_or_visit_limit_reached() const;
     void increment_playouts();
-    SearchResult play_simulation(GameState& currstate, UCTNode* const node);
+    SearchResult play_simulation(
+        GameState& currstate,
+        UCTNode* const node,
+        float& parent_avg_child_weight);
 
 private:
     void dump_stats(GameState& state, UCTNode& parent);
