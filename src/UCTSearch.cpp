@@ -53,6 +53,8 @@ void UCTSearch::set_gamestate(const GameState & g) {
         || m_rootstate.board.get_hash() != g.board.get_hash()) {
         m_root = m_root->find_new_root(g, m_rootstate);
     }
+    // TODO: For test make a new root
+    m_root = std::make_unique<UCTNode>(FastBoard::PASS, 0.0f, 0.5f);
     m_nodes = m_root->count_nodes();
 }
 
@@ -112,7 +114,7 @@ SearchResult UCTSearch::play_simulation(GameState & currstate, UCTNode* const no
     return result;
 }
 
-void UCTSearch::dump_stats(KoState & state, UCTNode & parent) {
+void UCTSearch::dump_stats(GameState & state, UCTNode & parent) {
     if (cfg_quiet || !parent.has_children()) {
         return;
     }
@@ -131,23 +133,30 @@ void UCTSearch::dump_stats(KoState & state, UCTNode & parent) {
     for (const auto& node : parent.get_children()) {
         // Always display at least two moves. In the case there is
         // only one move searched the user could get an idea why.
-        if (++movecount > 2 && !node->get_visits()) break;
+        // TODO: For test dump all moves
+        //if (++movecount > 2 && !node->get_visits()) break;
 
         std::string tmp = state.move_to_text(node->get_move());
         std::string pvstring(tmp);
+        GameState tmpstate = state;
+        tmpstate.play_move(node->get_move());
+        auto eval = node->eval_state(tmpstate);
+        if (state.board.white_to_move()) {
+            eval = 1.0f - eval;
+        }
+        // flip score to be from parent's POV,
+        // so it's easier to compare with the other values
+        //auto eval = 1.0f - node->eval_state(tmpstate);
+        pvstring += " " + get_pv(tmpstate, *node);
 
-        myprintf("%4s -> %7d (V: %5.2f%%) (N: %5.2f%%) PV: ",
+        myprintf("%4s -> %7d (V: %5.2f%%) (N: %5.2f%%) (first_V: %5.2f%%) PV: %s\n",
             tmp.c_str(),
             node->get_visits(),
             node->get_eval(color)*100.0f,
-            node->get_score() * 100.0f);
-
-        KoState tmpstate = state;
-
-        tmpstate.play_move(node->get_move());
-        pvstring += " " + get_pv(tmpstate, *node);
-
-        myprintf("%s\n", pvstring.c_str());
+            node->get_score() * 100.0f,
+            eval * 100.0f,
+            pvstring.c_str()
+            );
     }
 }
 
