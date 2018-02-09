@@ -61,13 +61,12 @@ def parseGameBody(filename, fh, tfh, verbose):
         if not gs.winner:
             if side_to_move_won == 1: gs.winner = to_move
             else : gs.winner = 1 - to_move
-        (netwinrate, root_uctwinrate, child_uctwinrate, bestmovevisits) = fh.readline().split()
-        netwinrate = float(netwinrate)
+        (root_uctwinrate, child_uctwinrate, bestmovevisits) = fh.readline().split()
         root_uctwinrate = float(root_uctwinrate)
         child_uctwinrate = float(child_uctwinrate)
         bestmovevisits = int(bestmovevisits)
         if side_to_move_won == 1:
-            if verbose >= 3: print("+", to_move, movenum, netwinrate, child_uctwinrate, bestmovevisits)
+            if verbose >= 3: print("+", to_move, movenum, child_uctwinrate, bestmovevisits)
             if not gs.resign_type and child_uctwinrate < resignrate:
                 if verbose >= 1:
                     print("Incorrect resign -- %s rr=%0.3f wr=%0.3f winner=%s movenum=%d" %
@@ -77,7 +76,7 @@ def parseGameBody(filename, fh, tfh, verbose):
                 gs.resign_type = "Incorrect"
                 gs.resign_movenum = movenum
         else:
-            if verbose >= 2: print("-", to_move, movenum, netwinrate, child_uctwinrate, bestmovevisits)
+            if verbose >= 2: print("-", to_move, movenum, child_uctwinrate, bestmovevisits)
             if not gs.resign_type and child_uctwinrate < resignrate:
                 if verbose >= 2: print("Correct resign -- %s" % (filename))
                 gs.resign_type = "Correct"
@@ -91,13 +90,15 @@ def parseGames(filenames, resignrate, verbose):
         training_filename = filename.replace(".debug", "")
         with open(filename) as fh, open(training_filename) as tfh:
             version = fh.readline().rstrip()
-            assert version == "2"
+            assert version == "3"
             (cfg_resignpct, network) = fh.readline().split()
             cfg_resignpct = int(cfg_resignpct)
-            if cfg_resignpct == 0:
-                gsd[filename] = parseGameBody(filename, fh, tfh, verbose)
-            elif verbose >= 2:
-                print("%s was played with -r %d, skipping" % (filename, cfg_resignpct))
+            if cfg_resignpct != 0:
+                if verbose >= 2:
+                    print("%s was played with -r %d, skipping" % (filename, cfg_resignpct))
+                continue
+            (black_lowest, white_lowest) = fh.readline().rstrip().split()
+            gsd[filename] = parseGameBody(filename, fh, tfh, verbose)
     return gsd
 
 def resignStats(gsd, resignrate):

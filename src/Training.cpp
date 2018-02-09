@@ -54,7 +54,6 @@ std::ostream& operator <<(std::ostream& stream, const TimeStep& timestep) {
         stream << prob << ' ';
     }
     stream << timestep.to_move << ' ';
-    stream << timestep.net_winrate << ' ';
     stream << timestep.root_uct_winrate << ' ';
     stream << timestep.child_uct_winrate << ' ';
     stream << timestep.bestmove_visits << std::endl;
@@ -77,7 +76,6 @@ std::istream& operator>> (std::istream& stream, TimeStep& timestep) {
         timestep.probabilities.push_back(prob);
     }
     stream >> timestep.to_move;
-    stream >> timestep.net_winrate;
     stream >> timestep.root_uct_winrate;
     stream >> timestep.child_uct_winrate;
     stream >> timestep.bestmove_visits;
@@ -145,10 +143,6 @@ void Training::record(GameState& state, UCTNode& root) {
     step.to_move = state.board.get_to_move();
     step.planes = Network::NNPlanes{};
     Network::gather_features(&state, step.planes);
-
-    auto result =
-        Network::get_scored_moves(&state, Network::Ensemble::DIRECT, 0);
-    step.net_winrate = result.second;
 
     const auto& best_node = root.get_best_root_child(step.to_move);
     step.root_uct_winrate = root.get_eval(step.to_move);
@@ -269,20 +263,26 @@ void Training::dump_debug(const std::string& filename) {
 }
 
 void Training::dump_debug(OutputChunker& outchunk) {
-    {
-        auto out = std::stringstream{};
-        out << "2" << std::endl; // File format version
-        out << cfg_resignpct << " " << cfg_weightsfile << std::endl;
-        outchunk.append(out.str());
-    }
+    auto out = std::stringstream{};
+    out << "3" << std::endl; // File format version
+    out << cfg_resignpct << " " << cfg_weightsfile << std::endl;
+
+    auto lowest_winrate = std::vector<float>{
+        std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
     for (const auto& step : m_data) {
-        auto out = std::stringstream{};
-        out << step.net_winrate
-            << " " << step.root_uct_winrate
+        lowest_winrate[step.to_move] = std::min(
+            lowest_winrate[step.to_move],
+            step.child_uct_winrate);
+    }
+    out << lowest_winrate[FastBoard::BLACK]
+        << " " << lowest_winrate[FastBoard::WHITE] << std::endl;
+
+    for (const auto& step : m_data) {
+        out << step.root_uct_winrate
             << " " << step.child_uct_winrate
             << " " << step.bestmove_visits << std::endl;
-        outchunk.append(out.str());
     }
+    outchunk.append(out.str());
 }
 
 void Training::process_game(GameState& state, size_t& train_pos, int who_won,
