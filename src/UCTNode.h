@@ -38,10 +38,11 @@ public:
 
     using node_ptr_t = std::unique_ptr<UCTNode>;
 
-    explicit UCTNode(int vertex, float score, float init_eval);
+    explicit UCTNode(int vertex, float score, float init_eval, float init_eval2);
     UCTNode() = delete;
     ~UCTNode() = default;
     bool first_visit() const;
+    void dump_stats(int color) const;
     bool has_children() const;
     bool create_children(std::atomic<int>& nodecount,
                          GameState& state, float& eval);
@@ -89,6 +90,7 @@ private:
     // UCT eval
     float m_score;
     float m_init_eval;
+    float m_init_eval2;
     std::atomic<double> m_blackevals{0};
     // node alive (not superko)
     std::atomic<bool> m_valid{true};

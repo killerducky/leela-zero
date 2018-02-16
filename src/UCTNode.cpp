@@ -44,8 +44,8 @@
 
 using namespace Utils;
 
-UCTNode::UCTNode(int vertex, float score, float init_eval)
-    : m_move(vertex), m_score(score), m_init_eval(init_eval) {
+UCTNode::UCTNode(int vertex, float score, float init_eval, float init_eval2)
+    : m_move(vertex), m_score(score), m_init_eval(init_eval), m_init_eval2(init_eval2) {
 }
 
 bool UCTNode::first_visit() const {
@@ -54,6 +54,14 @@ bool UCTNode::first_visit() const {
 
 SMP::Mutex& UCTNode::get_mutex() {
     return m_nodemutex;
+}
+
+void UCTNode::dump_stats(int color) const {
+    if (color == FastBoard::BLACK) {
+        myprintf("Init eval (tomove)=%f %f %f\n", m_init_eval, m_init_eval2, m_init_eval2 - m_init_eval);
+    } else {
+        myprintf("Init eval (tomove)=%f %f %f\n", 1.0f - m_init_eval, 1.0f - m_init_eval2, m_init_eval - m_init_eval2);
+    }
 }
 
 bool UCTNode::create_children(std::atomic<int> & nodecount,
@@ -131,7 +139,7 @@ void UCTNode::link_nodelist(std::atomic<int> & nodecount,
     m_children.reserve(nodelist.size());
     for (const auto& node : nodelist) {
         m_children.emplace_back(
-            std::make_unique<UCTNode>(node.second, node.first, init_eval)
+            std::make_unique<UCTNode>(node.second, node.first, init_eval, m_init_eval)
         );
     }
 
@@ -325,14 +333,14 @@ UCTNode* UCTNode::uct_select_child(int color) {
     // We do this manually to avoid issues with transpositions.
     auto total_visited_policy = 0.0f;
     auto parentvisits = size_t{0};
-    auto new_prior = get_pure_eval(FastBoard::BLACK);
+    //auto new_prior = get_pure_eval(FastBoard::BLACK);
     for (const auto& child : m_children) {
         if (child->valid()) {
             parentvisits += child->get_visits();
             if (child->get_visits() > 0) {
                 total_visited_policy += child->get_score();
             }
-            child->m_init_eval = new_prior;
+            //child->m_init_eval = new_prior;
         }
     }
 

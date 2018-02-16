@@ -42,7 +42,7 @@ UCTSearch::UCTSearch(GameState& g)
     : m_rootstate(g) {
     set_playout_limit(cfg_max_playouts);
     set_visit_limit(cfg_max_visits);
-    m_root = std::make_unique<UCTNode>(FastBoard::PASS, 0.0f, 0.5f);
+    m_root = std::make_unique<UCTNode>(FastBoard::PASS, 0.0f, 0.5f, 0.5f);
 }
 
 bool UCTSearch::advance_to_new_rootstate() {
@@ -104,7 +104,7 @@ void UCTSearch::update_root() {
 #endif
 
     if (!advance_to_new_rootstate() || !m_root) {
-        m_root = std::make_unique<UCTNode>(FastBoard::PASS, 0.0f, 0.5f);
+        m_root = std::make_unique<UCTNode>(FastBoard::PASS, 0.0f, 0.5f, 0.5f);
     }
     // Clear last_rootstate to prevent accidental use.
     m_last_rootstate.reset(nullptr);
@@ -501,6 +501,7 @@ int UCTSearch::think(int color, passflag_t passflag) {
     myprintf("NN eval (black)=%f\n",
              (color == FastBoard::BLACK ? root_eval : 1.0f - root_eval));
     myprintf("NN eval (tomove)=%f\n", root_eval);
+    m_root->dump_stats(color);
 
     m_run = true;
     int cpus = cfg_num_threads;
