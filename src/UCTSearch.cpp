@@ -202,7 +202,8 @@ void UCTSearch::dump_stats(KoState & state, UCTNode & parent) {
         pvstring += " " + get_pv(tmpstate, *node);
 
         myprintf("%s\n", pvstring.c_str());
-        if (++movecount > 2 && !node->get_visits()) break;
+        node->dump_stats(color);
+        if (!node->get_visits()) break;
     }
 }
 

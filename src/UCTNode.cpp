@@ -57,6 +57,7 @@ SMP::Mutex& UCTNode::get_mutex() {
 }
 
 void UCTNode::dump_stats(int color) const {
+    myprintf("Init eval (black)=%f %f %f\n", m_init_eval, m_init_eval2, m_init_eval2 - m_init_eval);
     if (color == FastBoard::BLACK) {
         myprintf("Init eval (tomove)=%f %f %f\n", m_init_eval, m_init_eval2, m_init_eval2 - m_init_eval);
     } else {
@@ -282,8 +283,13 @@ float UCTNode::get_eval(int tomove) const {
     // to return a consistent result to the caller by caching the values.
     auto virtual_loss = int{m_virtual_loss};
     auto visits = get_visits() + virtual_loss + cfg_prior_w;
+    //auto reduced_init_eval =
+    //    tomove == FastBoard::BLACK ? m_init_eval - 0.1f : m_init_eval + 0.1f;
+    auto reduced_init_eval = tomove == FastBoard::BLACK ?
+        std::min(m_init_eval, m_init_eval2) :
+        std::max(m_init_eval, m_init_eval2);
     if (visits > 0) {
-        auto blackeval = get_blackevals() + m_init_eval * cfg_prior_w;
+        auto blackeval = get_blackevals() + reduced_init_eval * cfg_prior_w;
         if (tomove == FastBoard::WHITE) {
             blackeval += static_cast<double>(virtual_loss);
         }
@@ -291,11 +297,12 @@ float UCTNode::get_eval(int tomove) const {
         if (tomove == FastBoard::WHITE) {
             score = 1.0f - score;
         }
+        //myprintf("get_eval %d %f %f %f %f\n", tomove, m_init_eval, m_init_eval2, reduced_init_eval, score);
         return score;
     } else {
         // If a node has not been visited yet,
         // the eval is that of the parent.
-        auto eval = m_init_eval;
+        auto eval = reduced_init_eval;
         if (tomove == FastBoard::WHITE) {
             eval = 1.0f - eval;
         }
