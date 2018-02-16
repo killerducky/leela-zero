@@ -185,7 +185,7 @@ void UCTSearch::dump_stats(KoState & state, UCTNode & parent) {
     for (const auto& node : parent.get_children()) {
         // Always display at least two moves. In the case there is
         // only one move searched the user could get an idea why.
-        if (++movecount > 2 && !node->get_visits()) break;
+        //if (++movecount > 2 && !node->get_visits()) break;
 
         std::string tmp = state.move_to_text(node->get_move());
         std::string pvstring(tmp);
@@ -202,6 +202,7 @@ void UCTSearch::dump_stats(KoState & state, UCTNode & parent) {
         pvstring += " " + get_pv(tmpstate, *node);
 
         myprintf("%s\n", pvstring.c_str());
+        if (++movecount > 2 && !node->get_visits()) break;
     }
 }
 
@@ -497,8 +498,9 @@ int UCTSearch::think(int color, passflag_t passflag) {
         m_root->dirichlet_noise(0.25f, 0.03f);
     }
 
-    myprintf("NN eval=%f\n",
+    myprintf("NN eval (black)=%f\n",
              (color == FastBoard::BLACK ? root_eval : 1.0f - root_eval));
+    myprintf("NN eval (tomove)=%f\n", root_eval);
 
     m_run = true;
     int cpus = cfg_num_threads;

@@ -54,6 +54,7 @@ public:
     float get_score() const;
     void set_score(float score);
     float get_eval(int tomove) const;
+    float get_pure_eval(int tomove) const;
     double get_blackevals() const;
     void accumulate_eval(float eval);
     void virtual_loss(void);

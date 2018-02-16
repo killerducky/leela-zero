@@ -295,6 +295,18 @@ float UCTNode::get_eval(int tomove) const {
     }
 }
 
+// version without virtual losses
+float UCTNode::get_pure_eval(int tomove) const {
+    auto visits = get_visits() + cfg_prior_w;
+    auto blackeval = get_blackevals() + m_init_eval * cfg_prior_w;
+    assert(visits > 0);
+    auto score = static_cast<float>(blackeval / (double)visits);
+    if (tomove == FastBoard::WHITE) {
+        score = 1.0f - score;
+    }
+    return score;
+}
+
 double UCTNode::get_blackevals() const {
     return m_blackevals;
 }
@@ -313,12 +325,14 @@ UCTNode* UCTNode::uct_select_child(int color) {
     // We do this manually to avoid issues with transpositions.
     auto total_visited_policy = 0.0f;
     auto parentvisits = size_t{0};
+    auto new_prior = get_pure_eval(FastBoard::BLACK);
     for (const auto& child : m_children) {
         if (child->valid()) {
             parentvisits += child->get_visits();
             if (child->get_visits() > 0) {
                 total_visited_policy += child->get_score();
             }
+            child->m_init_eval = new_prior;
         }
     }
 
@@ -331,7 +345,7 @@ UCTNode* UCTNode::uct_select_child(int color) {
             continue;
         }
 
-        auto winrate = child->get_eval(color) + child->m_init_eval;
+        auto winrate = child->get_eval(color);
         if (child->get_visits() == 0) {
             // First play urgency
             winrate -= fpu_reduction;
