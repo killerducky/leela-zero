@@ -273,9 +273,9 @@ float UCTNode::get_eval(int tomove) const {
     // possible for the visit count to change underneath us. Make sure
     // to return a consistent result to the caller by caching the values.
     auto virtual_loss = int{m_virtual_loss};
-    auto visits = get_visits() + virtual_loss;
+    auto visits = get_visits() + virtual_loss + cfg_prior_w;
     if (visits > 0) {
-        auto blackeval = get_blackevals();
+        auto blackeval = get_blackevals() + m_init_eval * cfg_prior_w;
         if (tomove == FastBoard::WHITE) {
             blackeval += static_cast<double>(virtual_loss);
         }
@@ -322,7 +322,8 @@ UCTNode* UCTNode::uct_select_child(int color) {
         }
     }
 
-    auto numerator = static_cast<float>(std::sqrt((double)parentvisits));
+    auto num_children = m_children.size();
+    auto numerator = static_cast<float>(std::sqrt((double)parentvisits + cfg_prior_w*num_children));
     auto fpu_reduction = cfg_fpu_reduction * std::sqrt(total_visited_policy);
 
     for (const auto& child : m_children) {
@@ -330,13 +331,13 @@ UCTNode* UCTNode::uct_select_child(int color) {
             continue;
         }
 
-        auto winrate = child->get_eval(color);
+        auto winrate = child->get_eval(color) + child->m_init_eval;
         if (child->get_visits() == 0) {
             // First play urgency
             winrate -= fpu_reduction;
         }
         auto psa = child->get_score();
-        auto denom = 1.0f + child->get_visits();
+        auto denom = 1.0f + child->get_visits() + cfg_prior_w;
         auto puct = cfg_puct * psa * (numerator / denom);
         auto value = winrate + puct;
         assert(value > -1000.0f);
