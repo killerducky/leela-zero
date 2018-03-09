@@ -141,7 +141,16 @@ SearchResult UCTSearch::play_simulation(GameState & currstate,
         }
     }
 
-    if (node->has_children() && !result.valid()) {
+    const auto cfg_eval_rotations_rate = 10;
+    auto num_rotations = node->get_num_rotations();
+    if (!result.valid() && node->has_children() &&
+        num_rotations < 8 &&
+        node->get_visits() > num_rotations*cfg_eval_rotations_rate) {
+        auto eval = node->do_next_rotation(currstate);
+        result = SearchResult::from_eval(eval);
+    }
+
+    if (!result.valid() && node->has_children()) {
         auto next = node->uct_select_child(color);
 
         if (next != nullptr) {

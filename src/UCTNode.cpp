@@ -36,6 +36,7 @@
 #include "GTP.h"
 #include "GameState.h"
 #include "Network.h"
+#include "Random.h"
 #include "Utils.h"
 
 using namespace Utils;
@@ -76,8 +77,12 @@ bool UCTNode::create_children(std::atomic<int>& nodecount,
     m_is_expanding = true;
     lock.unlock();
 
+    // TODO: Network/NNCache should remember which rotations have been done.
+    m_last_rotation = Random::get_Rng().randfix<8>();
     const auto raw_netlist = Network::get_scored_moves(
-        &state, Network::Ensemble::RANDOM_ROTATION);
+        &state, Network::Ensemble::DIRECT, m_last_rotation, true);
+    assert(m_num_rotations == 0);
+    m_num_rotations = 1;
 
     // DCNN returns winrate as side to move
     m_net_eval = raw_netlist.second;
@@ -114,6 +119,83 @@ bool UCTNode::create_children(std::atomic<int>& nodecount,
 
     link_nodelist(nodecount, nodelist);
     return true;
+}
+
+float UCTNode::do_next_rotation(GameState& state) {
+    // TODO: thread safe
+    auto move = state.move_to_text(get_move());
+    myprintf("debug dnr %4s v:%d\n", move.c_str(), get_visits());
+
+    assert(m_num_rotations > 0 && m_num_rotations < 8);
+    // After the initial random choice, just walk in order
+    m_last_rotation = (m_last_rotation + 1) % 8;
+
+    // TODO: Network/NNCache should remember which rotations have been done.
+    const auto raw_netlist = Network::get_scored_moves(
+        &state, Network::Ensemble::DIRECT, m_last_rotation, true);
+
+    // DCNN returns winrate as side to move
+    auto this_net_eval = raw_netlist.second;
+    const auto to_move = state.board.get_to_move();
+    // our search functions evaluate from black's point of view
+    if (state.board.white_to_move()) {
+        this_net_eval = 1.0f - this_net_eval;
+    }
+    // Average in new eval
+    auto orig_eval = m_net_eval;
+    m_net_eval =
+        (m_num_rotations * m_net_eval + this_net_eval)
+        / (m_num_rotations + 1);
+    myprintf("debug value orig:%5.2f this:%5.2f diff:%5.2f avg:%5.2f\n",
+        orig_eval*100.0f, this_net_eval*100.0f, (orig_eval-this_net_eval)*100.0f, m_net_eval*100.0f);
+
+    std::vector<Network::scored_node> nodelist;
+
+    auto legal_sum = 0.0f;
+    for (const auto& node : raw_netlist.first) {
+        auto vertex = node.second;
+        if (state.is_move_legal(to_move, vertex)) {
+            nodelist.emplace_back(node);
+            legal_sum += node.first;
+        }
+    }
+
+    if (legal_sum > std::numeric_limits<float>::min()) {
+        // re-normalize after removing illegal moves.
+        for (auto& node : nodelist) {
+            node.first /= legal_sum;
+        }
+    } else {
+        // This can happen with new randomized nets.
+        auto uniform_prob = 1.0f / nodelist.size();
+        for (auto& node : nodelist) {
+            node.first = uniform_prob;
+        }
+    }
+
+    // Average in new scores
+    assert(m_has_children);
+    for (auto& node : nodelist) {
+        auto found = false;
+        for (auto& child : m_children) {
+            if (node.second == child->get_move()) {
+                auto orig_score = child->m_score;
+                child->m_score =
+                    (m_num_rotations * child->m_score + node.first)
+                    / (m_num_rotations + 1);
+                auto move = state.move_to_text(child->get_move());
+                myprintf("debug score %4s orig:%5.2f this:%5.2f diff:%5.2f avg:%5.2f\n",
+                    move.c_str(), orig_score*100.0f, node.first*100.0f, (orig_score-node.first)*100.0f, child->m_score*100.0f);
+                found = true;
+                break;
+            }
+        }
+        assert(found);
+    }
+    m_num_rotations++;
+
+    // Backup the new eval only
+    return this_net_eval;
 }
 
 void UCTNode::link_nodelist(std::atomic<int>& nodecount,
@@ -174,6 +256,14 @@ void UCTNode::set_score(float score) {
 
 int UCTNode::get_visits() const {
     return m_visits;
+}
+
+int UCTNode::get_num_rotations() const {
+    return m_num_rotations;
+}
+
+int UCTNode::get_last_rotation() const {
+    return m_last_rotation;
 }
 
 float UCTNode::get_eval(int tomove) const {

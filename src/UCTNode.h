@@ -45,6 +45,7 @@ public:
 
     bool create_children(std::atomic<int>& nodecount,
                          GameState& state, float& eval);
+    float do_next_rotation(GameState& state);
 
     const std::vector<node_ptr_t>& get_children() const;
     void sort_children(int color);
@@ -61,6 +62,8 @@ public:
     bool active() const;
     int get_move() const;
     int get_visits() const;
+    int get_num_rotations() const;
+    int get_last_rotation() const;
     float get_score() const;
     void set_score(float score);
     float get_eval(int tomove) const;
@@ -107,6 +110,8 @@ private:
     // Is someone adding scores to this node?
     // We don't need to unset this.
     bool m_is_expanding{false};
+    int m_num_rotations{0};
+    int m_last_rotation{0};
     SMP::Mutex m_nodemutex;
 
     // Tree data
