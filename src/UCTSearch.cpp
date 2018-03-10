@@ -610,6 +610,9 @@ void UCTSearch::ponder() {
     update_root();
 
     m_run = true;
+    Time start;
+    auto p = 0;
+    auto l = std::numeric_limits<int>::max();
     int cpus = cfg_num_threads;
     ThreadGroup tg(thread_pool);
     for (int i = 1; i < cpus; i++) {
@@ -620,8 +623,15 @@ void UCTSearch::ponder() {
         auto result = play_simulation(*currstate, m_root.get());
         if (result.valid()) {
             increment_playouts();
+            p = m_playouts.load();
+            if (p % 100000 == 0) {
+                Time elapsed;
+                int elapsed_centis = Time::timediff_centis(start, elapsed);
+                myprintf("debug ponder m_playouts=%d limit=%d time:%.1fs\n",
+                    p, l, elapsed_centis/100.0f);
+            }
         }
-    } while(!Utils::input_pending() && is_running());
+    } while(!Utils::input_pending() && is_running() && (p < l/2));
 
     // stop the search
     m_run = false;
