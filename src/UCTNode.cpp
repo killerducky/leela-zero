@@ -124,7 +124,7 @@ bool UCTNode::create_children(std::atomic<int>& nodecount,
 float UCTNode::do_next_rotation(GameState& state) {
     // TODO: thread safe
     auto move = state.move_to_text(get_move());
-    myprintf("debug dnr %4s v:%d\n", move.c_str(), get_visits());
+    myprintf("debug dnr %4s v:%d nr:%d\n", move.c_str(), get_visits(), get_num_rotations());
 
     assert(m_num_rotations > 0 && m_num_rotations < 8);
     // After the initial random choice, just walk in order
@@ -184,8 +184,8 @@ float UCTNode::do_next_rotation(GameState& state) {
                     (m_num_rotations * child->m_score + node.first)
                     / (m_num_rotations + 1);
                 auto move = state.move_to_text(child->get_move());
-                myprintf("debug score %4s orig:%5.2f this:%5.2f diff:%5.2f avg:%5.2f\n",
-                    move.c_str(), orig_score*100.0f, node.first*100.0f, (orig_score-node.first)*100.0f, child->m_score*100.0f);
+                //myprintf("debug score %4s orig:%5.2f this:%5.2f diff:%5.2f avg:%5.2f\n",
+                //    move.c_str(), orig_score*100.0f, node.first*100.0f, (orig_score-node.first)*100.0f, child->m_score*100.0f);
                 found = true;
                 break;
             }

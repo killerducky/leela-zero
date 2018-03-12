@@ -35,7 +35,7 @@ void FastState::init_game(int size, float komi) {
     m_movenum = 0;
 
     m_komove = 0;
-    m_lastmove = 0;
+    m_lastmove = FastBoard::PASS;
     m_komi = komi;
     m_handicap = 0;
     m_passes = 0;
@@ -54,7 +54,7 @@ void FastState::reset_game(void) {
     m_passes = 0;
     m_handicap = 0;
     m_komove = 0;
-    m_lastmove = 0;
+    m_lastmove = FastBoard::PASS;
 }
 
 void FastState::reset_board(void) {
